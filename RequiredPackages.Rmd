@@ -1,0 +1,210 @@
+---
+title: "Required packages"
+date: November 2023
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+We will use the lab to **get started**. We will set up R for the course, including installing main libraries and loading the project data set. In **Let's get started (1) and (2)**, a list of the R packages you need for exercises in Manuela's, Zhi's and Maiju's lectures and the project work will be installed.
+
+## Let's get started (1) {.smaller}
+
+Install the main R packages with the statistical methods needed for this course:
+
+```{r install1, eval=FALSE, echo=TRUE}
+#Note: You might need to set .libPaths() to your local library path.
+#Check your library paths:
+.libPaths()
+
+#To install packages using BiocManager with R (at least version "3.6") and enter:
+if (!requireNamespace("BiocManager", quietly = TRUE))
+    install.packages("BiocManager")
+
+#Use BiocManager to install many packages at the same time:
+#Note: This will take a few minutes!
+BiocManager::install(ask=FALSE, update=FALSE, c(
+  #Unsupervised learning:
+      "pheatmap","cluster","ConsensusClusterPlus","RColorBrewer",
+  #High-throughput screening:
+      "ISLR2","limma","edgeR","DESeq2", "matrixStats", "pasilla", 
+  #Supervised learning:
+      "glmnet",
+  #Model validation:
+      "c060", "M3C", "riskRegression", "styler", "htmltools"
+))
+```
+
+## Let's get started (2)
+
+Install additional R packages for data handling, data pre-processing and annotation, as well as some auxiliary packages that represent extensions to basic R:
+
+```{r install2, eval=FALSE, echo=TRUE}
+#Use BiocManager to install many packages at the same time:
+BiocManager::install(ask=FALSE, update=FALSE, c(
+  #Basic stats and bioinformatics packages:
+      "Hmisc","psych","Biobase","genefilter","VennDiagram","boot",
+      
+  #Annotation and data pre-processing:
+      "org.Hs.eg.db","hgu133plus2.db","AnnotationDbi",
+      "biomaRt","GEOquery","Biostrings","gcrma","affy",
+      "GenomicRanges","Gviz","rtracklayer","seqinr",
+      "ISLR","airway", #Example data sets
+
+  #Extensions to basic R (tidyverse, Rmarkdown etc):
+      "fitdistrplus","tidyverse","reshape2",
+      "data.table","optparse","rjson","yaml","dplR","readr",
+      "logging","microbenchmark", "readxl"))
+```
+
+## Let's get started (3) {.smaller}
+
+**Let's get started (3)** is a list of the R packages you will need for the various exercises in Simon's lectures. They are split into packages that can be installed with the standard `install.packages("packagename")` command, and those that must be installed with the `BiocManager::install("packagename")` command. See [here](https://intro2r.com/packages.html) for more information. Additionally, there are some other tasks listed afterwards that need to be taken care of.
+
+## Required CRAN Packages (installed via `install.packages`)
+
+```{r install3, eval=FALSE, echo=TRUE}
+#For Code Development
+if(!require(logging)){
+  install.packages("logging")
+}
+if(!require(logger)){
+  install.packages("logger")
+}
+if(!require(roxygen2)){
+  install.packages("roxygen2")
+}
+
+if(!require(optparse)){
+  install.packages("optparse")
+}
+if(!require(dplR)){
+  install.packages("dplR")
+}
+if(!require(devtools)){
+  install.packages("devtools") # for installing packages from GitHub
+}
+if(!require(tools)){
+  install.packages("tools") # for package development
+}
+if(!require(BiocParallel)){
+  install.packages("BiocParallel") # for package development
+}
+
+
+# For Biological Sequence Processing
+if(!require(seqinr)){
+  install.packages("seqinr")
+}
+if(!require(Biostrings)){
+  install.packages("Biostrings")
+}
+if(!require(SummarizedExperiment)){
+  install.packages("SummarizedExperiment")
+}
+
+# For accessing Cancer Datasets in the Gerstung paper
+# if(!require(cgdsr)){
+#   install.packages("cgdsr")
+# }
+
+
+# For reading/writing data
+if(!require(data.table)){
+  install.packages("data.table")
+}
+
+if(!require(rjson)){
+install.packages("rjson")
+}
+
+if(!require(yaml)){
+install.packages("yaml")
+}
+
+
+# For making pretty plots
+if(!require(viridis)){
+  install.packages("viridis")
+}
+
+if(!require(ggbump)){
+  install.packages("ggbump")
+}
+
+if(!require(ggrepel)){
+  install.packages("ggrepel")
+}
+
+#For PCA analysis & Stats
+if(!require(ggfortify)){
+install.packages("ggfortify")
+}
+if(!require(psych)){
+install.packages("psych")
+}
+if(!require(Hmisc)){
+  install.packages("Hmisc")
+}
+if(!require(Biostrings)){
+  install.packages("e1071")
+}  
+if(!require(grid)){
+  install.packages("grid")
+} 
+  
+  
+```
+
+## Required BioConductor Packages (installed via `BiocManager::install`)
+
+```{r BioConductor, echo=TRUE}
+if (!requireNamespace("BiocManager", quietly = TRUE))
+    install.packages("BiocManager")
+
+BiocManager::install(c(
+  "rtracklayer","GenomicAlignments","pasillaBamSubset","Rsamtools",
+  "airway","TxDb.Dmelanogaster.UCSC.dm3.ensGene","hgu133plus2.db","RBioinf"))
+```
+
+## Required GitHub Packages (installed via `install_github`)
+
+```{r github, echo=TRUE}
+#install_github("mg14/CoxHD/CoxHD")
+```
+
+## Let's get started (4) {.smaller}
+
+Please also make sure that you can load the dataset that we will use throughout the course:
+
+```{r loaddata, eval=FALSE, echo=TRUE}
+#First, set the working directory to the directory where you have your
+#data (available from Canvas) and where you want to save all your 
+#analysis results. For example:
+library(here)
+# setwd("~/Dropbox/MF9155_teaching/2021")
+
+#Then, load the RData objects:
+load(here("input","Gerstung2015.RData"))
+load(here("input","Gerstung2015_AML.Rdata"))
+
+# # As an alternative you can create a path variable
+# path <- "~/Dropbox/MF9155_teaching/2021/"
+# #Then, load the RData objects:
+# load(paste0(path,"Gerstung2015.RData"))
+# load(paste0(path("Gerstung2015_AML.Rdata"))
+
+#Check, that the loading of the data worked by confirming that you
+#now have two new objects in your workspace called "gset" and "gsetAML":
+ls()
+```
+
+## Let's get started (5) {.smaller}
+
+### 5.1 Additional Software
+
+During Simon's lectures it could be handy to have a text editor. You can use anything you want (Microsoft Word doesn't count as it doesn't create plain text files). Simon's suggestion: [Atom](https://atom.io/)
+
+Also, access to a *Linux* command line window will be handy, but not necessary. If you have a MacOS then you are ready to go (just search for *term*) in *Spotlight Search*. If you are using Windows, you can get an Ubuntu app from the Windows store e.g., [this one](https://www.microsoft.com/en-us/p/ubuntu-2004-lts/9n6svws3rx71#activetab=pivot:overviewtab)
