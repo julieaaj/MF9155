@@ -55,6 +55,8 @@ input
 *.zip
 *.txt
 *.tsv
+*.xlsx
+*.fa
 
 #output files
 *.pdf
