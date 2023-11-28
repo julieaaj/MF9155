@@ -1,0 +1,169 @@
+---
+title: "MF9155 Project Work: Exploratory Data Analysis"
+author: "Manuela Zucknick"
+date: "November 2023"
+output: html_document
+---
+  
+```{r setup, message=FALSE, warning=FALSE, echo=FALSE, eval=TRUE, include=FALSE}
+knitr::opts_chunk$set(message=FALSE, warning=FALSE, eval=FALSE, echo=TRUE, fig.align="center")
+```
+
+# Gerstung et al. (2015)
+
+The data in all project work sessions come from Gerstung et al. (Nature Comm. 2015), an article presenting outcome prediction for patients with myelodysplastic syndrome (`MDS`) based on gene expression and gene mutation data. In addition, the results were validated on an acute myeloid leukemia (`AML`) data set.
+
+The aim of this project work session is to understand the setup of the data set and explore the data by calculating suitable summary statistics and summarising some of the data by simple graphics.
+
+**If the code is not provided, use suitable code snippets from the Introductory R lecture by Fatima on day 1 of the course to solve those tasks. Otherwise, go through the R code line by line (i.e. copy and paste individual lines to the Console) and see what happens in each case.**
+
+**Save all your analysis code as an R script or R Markdown (Rmd) file. Together as a group, prepare a brief analysis report which includes your output (numbers, tables, figures) as well as brief answers to the questions asked here.**
+  
+## 0. Set working directory, load libraries and data
+  
+* First, set the working directory to the directory where you have stored the data sets. You can do this either in the console by using the `setwd()` command. Or you can use the RStudio window tab `Files`, click to the correct directory and the use the `Set As Working Directory` option in the `More` tab.  
+
+* Load the libraries.
+* Load the data.  
+  
+```{r load}
+# load libraries
+library(Hmisc)
+library(Biobase)
+library(DESeq2)
+
+# load data (make sure that you are in the correct working directory with setwd()):
+load("Gerstung2015.RData")
+load("Gerstung2015_AML.Rdata")
+```  
+  
+## 1. MDS data set (main data)  
+
+The MDS gene expression data in this study was generated with hgu133plus2 Affymetrix arrays. The `Gerstung2015.RData` object contains an `ExpressionSet` object called `gset`, which contains the expression data that were normalized with `gcrma` (intensities are on the log2-scale) and annotations of the samples.
+
+## 1.1 Exploration of additional information available for patients (in `pData(gset)`)  
+
+* Save the `pData` in a `data.frame` called `clinic`. 
+* Which covariates are stored in the `pData` slot?
+* Use the Gerstung et al. (2015) article to find out about each of the variables (e.g. see Table 1).  
+* Report the mutation frequencies for all mutations (`clinic[,27:69]`). List the genes with mutation frequencies `> 10%`.
+  
+```{r clinic, results='hide', fig.show='hide'}
+# save the `pData` in a `data.frame` called `clinic`.
+clinic <- pData(gset)
+
+# which covariates are stored in the `pData` slot?
+colnames(clinic)
+
+# mutation frequencies
+mut <- clinic[,27:69]
+plot(sort(apply(mut, 2, mean, na.rm=TRUE), decreasing = TRUE),
+     xlab="Gene index", ylab="Mutation frequency")
+names(mut)[apply(mut, 2, mean, na.rm=TRUE)>0.1]
+```
+
+## 1.2 Bonus: Table 1
+
+* If there is time, reproduce the numbers reported in Table 1 in Gerstung et al. (2015). Analyse the ''Outcome and follow-up'' data only if you are familiar with the analysis of survival data (Kaplan-Meier estimates).    
+
+```{r clinic2}
+
+```
+
+## 1.3 Exploration of the gene expression matrix
+
+* What kind of information do you get when simply typing `gset` (i.e. the name of the data object) into the Console?
+* What is the dimension of the expression data matrix? How many samples (patients) and how many gene expression features?   
+
+```{r dim}
+
+```   
+
+### 1.3.1 Get a general overview of the distribution of gene expression values across all samples.  
+
+* Let's start with some boxplots: Run the following code. Compare the output of both lines - what do the additional function arguments do? 
+* Are there any outlier samples?  
+
+```{r overview1, results='hide', fig.show='hide'}
+# Make boxplots of all samples to compare the distributions:
+# Start simple:
+boxplot(exprs(gset))
+
+# Compare the previous line's output with the following plot. 
+# What do the additional function arguments do?
+boxplot(exprs(gset), outline=FALSE, names=rep("", ncol(gset)))
+```
+
+* Summarise the distribution of the per-sample median gene expression levels (Note: Use `apply()` to calculate the median for each sample).
+* Repeat for the minimum and maximum values. Do you notice anything unusual?  
+
+```{r overview2}
+
+```
+
+### 1.3.2 Investigate the expression value distributions for samples 1 to 10 in more detail.  
+
+* Make boxplots only for the first 10 samples.
+* To get a better impression of the shape of the distributions, create overlaying density plots. Use the provided `ggplot2` code.  
+
+* Can you understand what happens in each line of code? Check the help pages by typing `?melt`, `?ggplot`, etc. Note differences in the syntax used by the `ggplot2` package (i.e. in the last line of the code).  
+
+```{r samples1-10, fig.show='hide'}
+# Boxplots again:
+boxplot(exprs(gset)[,1:10], las=2, cex.axis=0.6)
+
+# Use the ggplot2 package to show overlaying density plots:
+library(ggplot2)
+library(reshape2)
+tidydata <- melt(exprs(gset)[,1:10])
+colnames(tidydata) <- c("feature", "sample", "value")
+
+ggplot(tidydata, aes(x=value, fill=sample)) + geom_density(alpha=0.25)
+```
+
+## 2. AML data set (validation data)
+
+The AML gene expression data in this study is RNA-seq data. The `Gerstung2015_AML.RData` object contains a `SummarizedExperiments` object called `gsetAML`, which contains the expression data as read counts aligned to genes (more accurately, ENSEMBL transcript IDs) and annotations of the samples.
+
+## 2.1 Exploration of additional information available for patients (in `colData(gsetAML)`)  
+
+* Read up on `SummarizedExperiment` objects by checking out the help page and the vignette (`vignette("SummarizedExperiment")`).  
+* What data is stored in `colData(gsetAML)` and what in `assay(gsetAML)`?  
+* Repeat the descriptive analysis of the clinical data from Section 1.1 for the AML data set.
+  
+```{r help, results='hide'}
+# Read up on SummarizedExperiment objects:
+?SummarizedExperiment
+vignette("SummarizedExperiment")
+```
+
+```{r clinicAML}
+
+```
+
+## 2.3 Exploration of the gene expression matrix
+
+* What kind of information do you get when simply typing `gsetAML` (i.e. the name of the data object) into the Console?
+* What is the dimension of the expression data matrix? How many samples (patients) and how many gene expression features?
+
+```{r dimAML}
+
+```   
+
+### 2.3.1 Get a general overview of the distribution of gene expression values across all samples.  
+
+* Investigate the distributions of the `gsetAML` expression data set, for example by adapting some of the code from Section 1.3.1.  
+* Describe the differences between the distributions of these RNA-seq data and the Affymetrix microarray expression data in `gset`.
+
+```{r overviewAML}
+
+```
+
+# Software
+
+* The `sessionInfo()` command is a great way to keep track of the software that you were using for a particular analysis, i.e. to remember which version of R (and each of the packages) was used. This is important to make sure that you can reproduce all of your analyses even years later.  
+
+```{r sessioninfo}
+sessionInfo()
+```
+

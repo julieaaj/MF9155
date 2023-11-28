@@ -1,0 +1,253 @@
+---
+title: "miRNA Prediction"
+author: "Simon Rayner"
+date: '2022-11-19'
+output: html_document
+---
+
+```{r paths}
+#workingFolder<-"/Users/simonray/DropboxUiO/teaching2021final/lecture1__ReproducibleResearch/data"
+#randomMiRs<-"50negmirs.tsv"
+#trainData<-"mirdata_train.tsv"
+#trainDataPath<-file.path(workingFolder,trainData)
+#testData<-"mirdata_test.tsv"
+#testDataPath<-file.path(workingFolder,testData)
+#test2Data<-"mirdata_test2.tsv"
+#test2DataPath<-file.path(workingFolder,test2Data)
+
+```
+# Introduction
+
+there are plenty of articles about the unlimited and disruptive potential of statistical learning approaches applied to the sciences and medicine. At the same time, there are some articles warning that incorrectly applied methodology can lead to misleading results. However, while there are many examples showing how SL methods can be applied to scientific and medical data, there don't seem to be any examples about how to incorrectly apply a model to a dataset. 
+
+Here, we try to train a SVM to recognise miRNA sequences from a set of training sequences consisting of positive data (human miRNA sequences taken from miRBase v22.1) and negative data (random DNA sequences) and see how the trained model performs.
+
+ 
+# Set up file paths
+```{r importFilePaths}
+source("/Users/simonrayner/UiO Dropbox/simon rayner/teaching/2023/Simon/lecture1__ReproducibleResearch/code/lab1filepaths.R")
+```
+
+
+# A simple test of the e1079 package 
+
+To begin with, we run through a basic example using the e1071 SVM package. 
+
+
+
+
+
+```{r genRandomData}
+# generate some random data
+set.seed(1)
+x=matrix(rnorm(20*2), ncol=2)
+y=c(rep(-1,10), rep(1,10))
+x[y==1,]=x[y==1,] + 1
+plot(x, col=(3-y))
+dat=data.frame(x=x, y=as.factor(y))
+dat
+```
+
+
+Now, we use this data to train the model
+
+```{r trainRandom}
+#BiocManager::install("RBioinf")
+library(e1071)
+svmfitR=svm(y~., data=dat, kernel="linear", cost=0.1,scale=FALSE)
+svmfitR$index
+summary(svmfitR)
+plot(svmfitR, dat)
+svmfitR$index
+
+
+tune.outR <- tune(svm , y~.,  data = dat , kernel = "linear", ranges = list(cost = c(0.001 , 0.01, 0.1, 1, 5, 10, 100)))
+summary(tune.outR)
+
+bestmodR <- tune.outR$best.model
+summary(bestmodR)
+
+
+```
+
+
+```{r testRandom}
+set.seed(1)
+xtest=matrix(rnorm(20*2), ncol=2)
+ytest=sample(c(-1,1), 20, rep=TRUE)
+xtest[ytest==1,]=xtest[ytest==1,] + 1
+testdat=data.frame(x=xtest, y=as.factor(ytest))
+ypred=predict(bestmodR,testdat)
+table(predict=ypred, truth=testdat$y)
+
+```
+
+The truth table is a simple way to look at how well the model performed. It will be covered more extensively in subsequent lectures. 
+Basically, it shows 
+
+* how many negative data points were correctly predicted to be negative (True Negatives/TN), 
+* how many negative data points were incorrectly predicted to be positive (False Positives/FP) 
+* how many positive data points were correctly predicted to be positive (True Positives/TP)
+* how many positive data points were incorrectly predicted to be negative (False Negatives/FN)
+
+```
+                        A perfect model         A randomly trained model   A badly trained mode
+                                                (random performance)       (labels switched?)
+          truth                 truth                      truth                  truth     
+predict  -1  1         predict  -1  1              predict  -1  1         predict  -1  1
+     -1   TN FP             -1  10  0                   -1   5  5              -1   0  10
+      1   FN TP              1   0 10                    1   5  5               1  10   0 
+     
+```
+
+So, based on this, the trained SVM does pretty well with the supplied training and testing data.
+
+
+# A miRNA Prediction SVM model
+
+Now we try and do the same thing using miRNA sequences. I chose miRNAs (i) because they are short and (ii) they bind their targets in a very imprecise way, so it is not clear what kind of selection pressure they are under, and whether the SVM will be able to separate them from the negative data.
+
+
+## One Hot Encoding
+First of all, we need to have a way of encoding the sequences so they can be used as input to the svm method. To do this, we use one hot encoding.  Each nucleotide is represented by four inputs:
+
+```{r genNegativeData}
+library(stringr)
+library(e1071)
+
+dna <- c("A", "C", "G", "T")
+one_hot_encode <- function(x){
+  spl <- strsplit(x, "")[[1]]
+  fa <- factor(spl, levels = dna)
+  sapply(fa, table) |>
+    Reduce(f = c, x = _)
+}
+```
+
+
+To demonstrate this, we can try a set of short test sequences. 
+```{r testOneHotEncode}
+library(stringr)
+
+dataIn <- c(
+  "AACCGGTT", 
+  "TTGGCCAA", 
+  "CTTACGTA", 
+  "GTACGTCC"
+  )
+
+
+data.frame(do.call(rbind,lapply(dataIn, one_hot_encode)))
+
+```
+
+each sequence is 8nt long, so they translate to 8x4=32 inputs.
+
+## Load Training Data
+The test data consists of a set of 50 miRNAs of 22nt selected from miRBase v22.1 and 50 random DNA 22nt sequences generated using the following function.
+
+
+```{r generateRandomData}
+library(readr)
+library(RBioinf)
+
+seq<-replicate(50, randDNA(22))
+dfMiR<-data.frame(seq)
+dfMiR$type <- replicate(50, -1)
+name<-paste("rand", seq(1:50), sep="_")
+dfMiR  <-cbind(name,dfMiR)
+#dfMiR
+#write_tsv(dfMiR, file.path(workingFolder,randomMiRs))
+```
+
+These two datasets were merged and written to a single file `mirdata_train.tsv` in the `data` folder under the `lecture1__ReproducibleResearch` folder.
+So
+1. load the data
+2. take the sequence and one hot encode
+3. bind with the sequence classification (positive or negative)
+
+The `svm` function expects a data frame, so
+
+4. show my inepititude in R and try to transform the data into a dataframe
+
+```{r loadAndEncodeMiRs}
+library(readr)
+trainData<-read_tsv(trainDataPath)
+
+# one hotencode
+trainingSeq<-trainData$sequence
+
+encodedTrainSeqsDNA<-data.frame(do.call(rbind,lapply(trainingSeq, one_hot_encode)))
+
+# add classification column
+y<-trainData$class
+encodedTrainSeqsDNA  <-cbind(y,encodedTrainSeqsDNA)
+
+# persuade a list of strings to become a dataframe of doubles
+dfEncodedTrainSeqsDNA <- as.data.frame(lapply( encodedTrainSeqsDNA, as.double ))
+dfEncodedTrainSeqsDNA$y = as.factor(dfEncodedTrainSeqsDNA$y)
+```
+
+## Train and tune the SVM
+
+
+
+```{r trainMiRs}
+library(e1071)
+svmfitMiR=svm(y~., data=dfEncodedTrainSeqsDNA, kernel="polynomial", cost=0.1,scale=FALSE)
+
+svmfitMiR$index
+summary(svmfitMiR)
+tunedMiR <- tune(svm , y~.,  data = dfEncodedTrainSeqsDNA , kernel = "polynomial", ranges = list(cost = c(0.001 , 0.01, 0.1, 1, 5, 10, 100)))
+summary(tunedMiR)
+
+bestmodMiR <- tunedMiR$best.model
+summary(bestmodMiR)
+
+```
+
+
+
+
+Finally, we test the trained model with two test sets. 
+
+
+## Test data 1
+Another set of 25 human miRNAs from miRBase that weren't in the training set + 25 more random sequences. 
+
+
+```{r testMiRModel1}
+testData<-read_tsv(testDataPath)
+testSeq<-testData$sequence
+encodedTestSeqsDNA<-data.frame(do.call(rbind,lapply(testSeq, one_hot_encode)))
+y<-testData$class
+encodedTestSeqsDNA  <-cbind(y,encodedTestSeqsDNA)
+dfEncodedTestSeqsDNA <- as.data.frame(lapply( encodedTestSeqsDNA, as.double ))
+dfEncodedTestSeqsDNA$y = as.factor(dfEncodedTestSeqsDNA$y)
+
+yPredMiR<-predict(bestmodMiR , dfEncodedTestSeqsDNA)
+table(predict = yPredMiR , truth = dfEncodedTestSeqsDNA$y)
+
+```
+The model performance isn't great, but it can correctly identify miRNAs better than randomly guessing. The mediocre model performance isn't too surprising as we only gave it a very small training set and very limited information (only the sequence).
+
+
+# Test Data 2
+
+The second dataset is another set of 22nt 25 human miRNAs and a set of 25 piRNAs that have been trimmed down to 22nt from the 3' end. 
+
+```{r testMiRModel2}
+test2Data<-read_tsv(test2DataPath)
+test2Seq<-test2Data$sequence
+encodedTest2SeqsDNA<-data.frame(do.call(rbind,lapply(test2Seq, one_hot_encode)))
+y<-test2Data$class
+encodedTest2SeqsDNA  <-cbind(y,encodedTest2SeqsDNA)
+dfEncodedTest2SeqsDNA <- as.data.frame(lapply( encodedTest2SeqsDNA, as.double ))
+dfEncodedTest2SeqsDNA$y = as.factor(dfEncodedTest2SeqsDNA$y)
+
+yPredMiR2<-predict(bestmodMiR , dfEncodedTest2SeqsDNA)
+table(predict = yPredMiR2 , truth = dfEncodedTest2SeqsDNA$y)
+```
+
+The model performance is even worse. So, the model is better at discrimating between miRNAs and random sequence, than between piRNAs and miRNAs. 
+

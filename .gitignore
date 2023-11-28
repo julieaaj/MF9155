@@ -51,4 +51,11 @@ rsconnect/
 
 #input files
 *.csv
+input
+*.zip
+*.txt
+*.tsv
 
+#output files
+*.pdf
+*.html

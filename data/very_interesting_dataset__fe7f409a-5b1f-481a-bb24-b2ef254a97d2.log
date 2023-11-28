@@ -1,0 +1,5 @@
+2021-11-22 15:47:45 INFO::logger loaded
+2021-11-22 15:47:45 INFO::logfile is < /Users/simonray/DropboxUiO/teaching2021final/lecture1__ReproducibleResearch/data/very_interesting_dataset__fe7f409a-5b1f-481a-bb24-b2ef254a97d2.log >
+2021-11-22 15:47:45 INFO::datafile is < /Users/simonray/DropboxUiO/teaching2021final/lecture1__ReproducibleResearch/data/very_interesting_dataset.csv >
+2021-11-22 15:47:46 INFO::plotfile is < /Users/simonray/DropboxUiO/teaching2021final/lecture1__ReproducibleResearch/plots/very_interesting_dataset__fe7f409a-5b1f-481a-bb24-b2ef254a97d2__figure1.pdf >
+2021-11-22 15:47:46 INFO::color='darkred',method = 'loess',formula = 'y ~ x'

@@ -1,0 +1,485 @@
+---
+title: "MF9155: The Bioconductor Project"
+author: "Manuela Zucknick"
+date: "November 2023 (Acknowledgement: Martin Sill)"
+fontsize: 9pt
+output: 
+  beamer_presentation:
+    highlight: tango
+    theme: Singapore
+---
+
+```{r setup, message=FALSE, warning=FALSE, echo=FALSE, eval=TRUE, include=FALSE}
+knitr::opts_chunk$set(eval=TRUE, echo=TRUE, fig.align="center", fig.show='hold', size='tiny', fig.path='figures/beamer-')
+
+options(digits=4)
+```
+
+# Introduction
+
+## Access the R code in this lecture from Canvas
+\centering
+\includegraphics[width=\textwidth]{canvas_source.png}
+
+## Run the R code in this lecture: with R script
+\centering
+\includegraphics[width=\textwidth]{RstudioScreen1.png}
+
+## Run the R code in this lecture: with Rmd file
+\centering
+\includegraphics[width=\textwidth]{RstudioScreen2.png}
+
+
+
+## What is Bioconductor?
+
+\begin{itemize}
+\item Open-source, open-development software project for the analysis and comprehension of high-throughput data in genomics.
+\item The project was started in 2001 and is overseen by the Bioconductor core team, based primarily at the Fred Hutchinson Cancer Research Center, with other members coming from various international institutions.
+\item $13747$ citations (Google Scholar)
+\item \url{http://bioconductor.org/}
+\end{itemize}
+
+
+## What is Bioconductor?
+\centering
+\includegraphics[width=0.8\textwidth]{biocon.png}
+
+
+## What is Bioconductor?
+\centering
+\includegraphics[width=0.9\textwidth]{paper2004.png}
+
+Offical reference paper $2004$, \url{www.genomebiology.com/content/5/10/R80}
+
+
+## What is Bioconductor?
+\centering
+\includegraphics[width=0.9\textwidth]{paper2015.png}
+
+New reference paper $2015$, \url{www.nature.com/nmeth/journal/v12/n2/abs/nmeth.3252.html}
+
+## Why use Bioconductor?
+
+\begin{itemize}
+\item \textcolor{blue}{Data input and wrangling.} Bioconductor packages support most data types produced by modern technologies, and technology-specific "preprocessing" routines. The community is actively keeping these up-to-date.
+
+\item \textcolor{blue}{Rich data structures.} Bioconductor project has defined specialized data containers to represent complex biological datasets. Help to keep data consistent, safe and easy to use.
+
+\item \textcolor{blue}{Interoperability and distributed development.} Bioconductor contains packages from many authors that cover a wide range of functionalities, but still interoperate because ofcommon data containers.
+
+\item \textcolor{blue}{Documentation.} Many R (and Bioconductor) packages come with excellent documentation in their help pages and vignettes. Vignettes are often the best starting point into a package. Also online tutorials, fora and mailing lists for R and Bioconductor.
+\end{itemize}
+
+## What is Bioconductor good for?
+\begin{itemize}
+\item Provides \textcolor{blue}{core data structures} and methods to enable genome-scale analysis of high-throughput data
+\vspace{.125 cm}
+\item \textcolor{blue}{Sequencing data:} RNA-seq, ChiP-seq, variant calling, ...
+\vspace{.125 cm}
+\item \textcolor{blue}{Microarray data:} Gene expression, copy number, arrayCGH, SNPs,
+methylation, microRNA, ...
+\vspace{.125 cm}  
+\item Flow cytometry, proteomics, metabolomic, quantitative imaging and other high-throughput data
+\vspace{.125 cm}
+\item \textcolor{blue}{Annotation:} genes, pathways, gene models, exons, transcripts, ... 
+\vspace{.125 cm}
+\item \textcolor{blue}{Visualization:} data along genomic coordinates, heatmaps, etc.
+\vspace{.125 cm}
+\item Builds on the rich statistical programming environment offered by the \textcolor{blue}{R} project.
+\end{itemize}
+
+
+# Install, Update, Doc
+
+## Installing and Updating Bioconductor
+\begin{itemize}
+\item Current release Bioconductor 3.18, new release every 6 months.
+\item Compatible with R version 4.3.0.
+\item Currently 2266 software packages, 429 experiment data packages, 920 annotation packages, and 30 workflows.
+\item To install core packages or identify packages that require an update:
+\end{itemize}
+```{r eval=FALSE, size='tiny'}
+if (!requireNamespace("BiocManager", quietly = TRUE))
+    install.packages("BiocManager")
+BiocManager::install(version = "3.18")
+```
+\begin{itemize}
+\item Install specific packages:
+\end{itemize}
+```{r eval=FALSE, size='tiny'}
+BiocManager::install("minfi")
+```  
+\begin{itemize}
+\item Update packages:
+\end{itemize}
+```{r eval=FALSE, size='tiny'}
+#For large files, increase timeout from default e.g. 120sec
+options(timeout=120)
+BiocManager::install()
+```  
+
+
+## Documentation (comes at three levels)
+
+\vspace{.25 cm}
+\begin{itemize}
+\item[1] \textbf{Workflows:} Documentation of complete analyses spanning multiple tools/packages
+\end{itemize}
+```{r eval=FALSE, size='tiny'}
+#RNA-Seq workflow 
+BiocManager::install("rnaseqGene")  
+browseVignettes("rnaseqGene")
+```
+\begin{small}
+\url{http://bioconductor.org/packages/release/workflows/html/rnaseqGene.html}
+\end{small}
+
+\vspace{.25 cm}
+\begin{itemize}
+\item[2] \textbf{Package vignettes:} Description of the use of a particular package
+\end{itemize}
+```{r eval=FALSE, size='tiny'}
+browseVignettes("DESeq2")
+```
+
+\begin{itemize}
+\item[3] \textbf{Manual pages:} Usual R documentation that describes input/output of functions
+\end{itemize}
+
+## Documentation and Support
+\centering
+\includegraphics[width=0.8\textwidth]{biocon.png}
+
+# Data Structures: ExpressionSet
+
+## Object Oriented Programming (OOP): \texttt{S3} classes
+\begin{itemize}
+\item \texttt{R} has three object oriented systems: \texttt{S3}, \texttt{S4} and \texttt{R6}
+  
+\item if not base types, like \texttt{integer} or \texttt{Factor}, most objects are \texttt{S3}
+\item \texttt{S3} has no formal definition of classes.
+\end{itemize}
+```{r eval=TRUE, size='tiny'}
+df <- data.frame(x = 1:10, y = letters[1:10])
+class(df)
+t(df) # t is the generic function
+t.data.frame(df) # S3 method for data.frame objects
+```
+
+
+## OOP: \texttt{S3} classes
+```{r eval=TRUE, size='tiny'}
+methods(t) # what other methods for generic function t() ? 
+methods(t.test) # bad name for a generic function
+```
+
+```{r eval=TRUE, size='tiny'}
+methods(class="lm") # what methods to apply to lm objects?
+```
+
+## OOP: \texttt{S4} classes
+\begin{itemize}
+\item S4 has formal class definitions:
+\end{itemize}
+```{r eval=FALSE, size='tiny'}
+setClass("myNewClass",
+representation(x = "numeric", y = "numeric"))
+n1 <- new("myNewClass", x = rnorm(10), y = 1:10)
+n1[1]
+n1$x # Doesn't work!
+n1
+n1@x # @-operator is used to access slots
+```
+
+
+## Bioconductor Data Structures: \texttt{ExpressionSet}
+\begin{itemize}
+\item Standardized \texttt{S4} data structure to represent microarray data
+\vspace{.25 cm}
+\item Combines several sources of information into one object
+\vspace{.25 cm}
+\item \texttt{assayData}: A \texttt{matrix} of expression values from a microarray experiment
+\vspace{.25 cm}
+\item \texttt{phenoData}: An optional \texttt{AnnotatedDataFrame} containing information about each sample.
+\vspace{.25 cm}
+\item \texttt{featureData}: An optional \texttt{AnnotatedDataFrame} containing information about each feature.
+\vspace{.25 cm}
+\item \texttt{experimentData}: An optional \texttt{MIAME} instance with meta-data about the experiment.
+(e.g., the lab and resulting publications from the analysis)
+\vspace{.25 cm}
+\item \texttt{protocolData}: An optional \texttt{AnnotatedDataFrame} containing equipment-generated information about protocols.
+\end{itemize}
+
+
+## Building an \texttt{ExpressionSet} from Scratch
+Simulate \texttt{assayData}, i.e., measured gene expression values
+```{r eval=TRUE,message=FALSE,warning=FALSE, size='tiny'}
+# Base functions / Infrastructure for Bioconductor:
+library(Biobase)
+?ExpressionSet
+
+#simulate 6 observations of 100 genes 
+#by sampling from a uniform distribution
+eset <- ExpressionSet(assayData=matrix(runif(600), 
+                                       nrow=100, ncol=6))
+eset
+```
+
+
+## Access the \texttt{assayData} slot
+```{r eval=TRUE, size='tiny'}
+exprs(eset)[1:5,]
+#each slot can be accessed using the @ operator, 
+#like the $ for S3 classes
+eset@assayData
+```
+
+
+## Add the \texttt{phenoData} slot
+```{r eval=TRUE, size='tiny'}
+#generate gender
+gender <- rep(c("Male", "Female"), 3) 
+#generate some categorical
+type <- as.factor(rep(c("A", "B", "C"), 2)) 
+pdata <- data.frame(gender, type)
+#annotated data frame
+pdata <- new("AnnotatedDataFrame", data = pdata) 
+#add pdata to eset
+phenoData(eset) <- pdata 
+eset
+```
+
+
+## Accessing Data Elements
+```{r eval=TRUE, size='tiny'}
+#each slot can be accessed using the @ operator, 
+#like the $ for S3 classes
+str(eset)
+```
+
+
+## Accessing Data Elements
+```{r eval=TRUE, size='tiny'}
+# use @ access annotated data frame and $ for gender
+eset@phenoData$gender 
+#same but different; method to access phenoData
+phenoData(eset)$gender 
+# directly access gender; works only for phenoData
+eset$gender 
+```
+
+
+## Accessing Data Elements
+```{r eval=TRUE, size='tiny'}
+# assayData can be accessed/extracted by exprs()
+head(exprs(eset)) 
+# via @ only locked environment
+eset@assayData 
+# does not allow users
+# to directly manipulate expression data
+```
+
+
+## Subsetting ExpressionSets
+```{r eval=TRUE, size='tiny'}
+eset[1:10, ] # 10 genes, phenoData stays the same
+```
+
+
+## Subsetting ExpressionSets
+```{r eval=TRUE, size='tiny'}
+eset <- eset[, order(eset$gender)] #reordering by gender
+exprs(eset)[1:2,]  # both assayData 
+eset$gender #and phenoData are reordered
+eset$type
+```
+
+
+# Annotation
+
+## Annotation: Packages and Resources
+
+\begin{itemize}
+\item Annotation of genomic regions and associated gene products
+\vspace{.25 cm}
+\item Mapping between molecule identifiers
+\vspace{.25 cm}
+\item Essential to describe results or perform integrated analysis
+\vspace{.25 cm}
+\item 920 prebuilt standardized annotation packages
+\vspace{.25 cm}
+\item Each package presents data through a standard interface using defined Bioconductor classes
+\vspace{.25 cm}
+\item Most Bioconductor annotation packages are updated every 6 months 
+\end{itemize}
+
+
+## Annotation: Packages and Resources
+
+1. Gene-centric annotation (\texttt{AnnotationDbi}):
+  \begin{itemize}
+  \item Organism level OrgDb: e.g. 
+  \end{itemize}
+    ```{r eval=FALSE, size='tiny'} 
+  library(org.Hs.eg.db) #Genome wide annotation for Human
+    ```
+ \begin{itemize}
+ \item Platform level ChipDb: e.g.
+ \end{itemize}
+    ```{r eval=FALSE, size='tiny'} 
+  library(hgu133plus2.db) #Affymetrix Human Genome U133 Plus 2
+    ```
+  \begin{itemize}
+  \item Pathway level (FunctionalAnnotation): e.g. 
+  \end{itemize}
+    ```{r eval=FALSE, size='tiny'} 
+  library(GO.db) #Annotation describing the Gene Ontology
+    ```    
+2. Genome-centric annotation (transcript model) (\texttt{GenomicFeatures}):  
+  \begin{itemize}
+  \item Transcriptome level TxDb: e.g.
+  \end{itemize}
+    ```{r eval=FALSE, size='tiny'} 
+  #TxDb objects map UTRs, CDS, exons and transcripts
+  library(TxDb.Hsapiens.UCSC.hg38.knownGene)  
+    ```
+
+
+## Annotation: Packages and Resources
+
+1. Whole-genome sequences (\texttt{BSgenome}): e.g.
+    ```{r eval=FALSE, size='tiny'} 
+  # Full genome sequences for UCSC version hg38 stored 
+  # as Biostrings object
+  library(BSgenome.Hsapiens.UCSC.hg38)   
+    ```
+  
+2. Query web-based resource for genes, sequence, SNPs, and etc. \\
+   \begin{itemize}
+   \item Interface to BioMart databases (e.g. Ensembl, COSMIC ,Wormbase and Gramene)
+   \end{itemize}
+    ```{r eval=FALSE, size='tiny'} 
+  library(biomaRt)   
+    ```
+  \begin{itemize}
+    \item \texttt{AnnotationHub}; access to large collections of publicly available whole genome resources, e.g,. ENSEMBL
+    \item \texttt{rtracklayer}; Interface to genome browsers and their annotation tracks.
+  \end{itemize}
+
+
+## Annotation: Example
+```{r eval=TRUE,warning=FALSE,message=FALSE, size='tiny'}
+library(org.Hs.eg.db)
+keytypes(org.Hs.eg.db)
+ensids <- c("ENSG00000130720", "ENSG00000103257", "ENSG00000156414")
+select(org.Hs.eg.db, keys=ensids, 
+       columns=c('ENSEMBL','SYMBOL'), keytype="ENSEMBL")
+```
+
+
+## Annotation: Example II
+```{r eval=TRUE,warning=FALSE,message=FALSE, size='tiny'}
+#retrieve annotation via http://www.biomart.org/
+library(biomaRt) 
+ensembl <- useDataset("hsapiens_gene_ensembl",
+                      mart = useMart("ensembl")) 
+affyids <- c("202763_at", "209310_s_at")
+getBM(attributes = c("affy_hg_u133_plus_2", "hgnc_symbol",
+                     "chromosome_name","start_position",
+                     "end_position", "band"),
+    filters = "affy_hg_u133_plus_2",
+    values = affyids, mart = ensembl)
+```
+
+
+# Genomic data structures: GenomicRanges, Gviz
+
+## Data Structures: GenomicRanges
+```{r eval=TRUE,warning=FALSE,message=FALSE, size='tiny'}
+#Representation and manipulation of genomic intervals
+library(GenomicRanges)
+library(Gviz)
+data(cpgIslands)
+class(cpgIslands)
+cpgIslands[1:3,]
+```
+
+
+## Data Structures: GenomicRanges
+```{r eval=TRUE,warning=FALSE,message=FALSE, size='tiny'}
+#Representation and manipulation of genomic intervals
+start(cpgIslands)
+end(cpgIslands)
+seqnames(cpgIslands) # the chromosomes for each ranges
+seqlevels(cpgIslands) # the possible chromosomes
+seqlengths(cpgIslands) # the lengths for each chromosome
+```
+
+
+## Visualization: Gviz
+```{r eval=TRUE,warning=FALSE,message=FALSE, size='tiny'}
+# simulate some methylation values
+elementMetadata(cpgIslands) <- matrix(runif(50), nrow = 10) 
+cpgIslands[1:3,]
+```
+
+
+## Visualization: Gviz
+```{r eval=TRUE,warning=FALSE,message=FALSE, size='tiny'}
+# again, plot elements are organized as tracks
+chr <- seqlevels(cpgIslands) # only chromosome 7
+gen <- genome(cpgIslands) # human genome build 19
+gen
+atrack <- AnnotationTrack(cpgIslands, name = "CpG") #annotation
+dtrack <- DataTrack(cpgIslands, type = "p", jitter.x = T,
+                    name = "beta",  ylim = c(0, 1.05),
+                    legend = TRUE, cex = 1.2) 
+dtrack # data track that shows the methylation values as points
+```
+
+
+## Visualization: Gviz
+```{r eval=FALSE,warning=FALSE,message=FALSE,out.width='70%', size='tiny'}
+# axis that shows basepair position:
+gtrack <- GenomeAxisTrack() 
+# ideogram :
+itrack <- IdeogramTrack(genome = gen, chromosome = chr)
+plotTracks(list(itrack, gtrack, dtrack, atrack)) 
+```
+\begin{center}
+\includegraphics[width=0.6\textwidth]{itrack.png}
+\end{center}
+
+# Other Data Structures and Integration of Several Data Sets: \texttt{SummarizedExperiments}
+
+## \texttt{SummarizedExperiments}
+
+\centering
+\includegraphics[width=.6\textwidth]{nmeth.jpg}
+
+\begin{itemize}
+\item \texttt{rowData} stores metadata about features, including genomic ranges
+\item \texttt{colData} stores sample covariate data
+\item \texttt{exptData} carries experimental-level information
+\item \texttt{assays} one or more matrices, e.g. count data (RNA-seq, CNV), etc.
+\end{itemize}
+
+
+## Learn more
+
+\begin{center}
+\includegraphics[width=0.6\textwidth]{edX.png}
+\end{center}
+
+\url{www.edx.org/xseries/data-analysis-life-sciences} - lecturers: Rafael Irizarry, Michael Love
+
+## Learn more (2)
+
+**Open book:** \url{http://genomicsclass.github.io/book/} (focus on Bioconductor from chapter 11)
+
+**Mike Love's Bioconductor Cheat Sheet:** \url{https://github.com/mikelove/bioc-refcard}
+
+\begin{center}
+\includegraphics[width=0.6\textwidth]{cheatsheet.png}
+\end{center}
