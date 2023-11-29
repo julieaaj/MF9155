@@ -1,0 +1,315 @@
+---
+title: "MF9155 Project Work: Unsupervised learning"
+subtitle: "Group 2"
+author: "Maiju Pesonen, Manuela Zucknick"
+date: "November 2023"
+output: 
+  html_document:
+    toc: TRUE
+    toc_float: TRUE
+    number_sections: TRUE
+    theme: yeti
+    highlight: kate
+---
+
+```{r setup, message=FALSE, warning=FALSE, echo=FALSE, eval=TRUE, include=FALSE}
+knitr::opts_chunk$set(message=FALSE, warning=FALSE, eval=FALSE, echo=TRUE, fig.align="center")
+```
+
+## Gerstung et al. (2015)
+
+The aim of this project work session is to find molecular subgroups in the gene expression data by applying hierarchical clustering and principal component analysis (PCA).
+
+**Go through the R code line by line (i.e. copy and paste individual lines to the Console) and see what happens in each case. In some cases, the code is not provided. Use the exercises from today's computer lab to solve those tasks.**
+
+**Save all your analysis code as an R script or R Markdown (Rmd) file. Together as a group, prepare a brief analysis report which includes your output (numbers, tables, figures) as well as brief answers to the questions asked here.**
+
+# 0. Loading the libraries and the data
+
+```{r load, include=FALSE}
+library(DESeq2)
+library(pheatmap)
+library(cluster)
+library(ConsensusClusterPlus)
+library(here)
+library(tidyverse)
+
+# load the data (make sure that you are in the correct working directory with setwd()):
+load("Gerstung2015.RData")
+load("Gerstung2015_AML.Rdata")
+```
+
+## 1. MDS data set (main data)  
+
+The MDS gene expression data in this study was generated with hgu133plus2 Affymetrix arrays. The `Gerstung2015.RData` object contains an `ExpressionSet` object called `gset`, which contains the expression data that were normalized with `gcrma` (intensities are on the log2-scale) and annotations of the samples.
+
+## 1.2 PCA 
+
+To apply PCA to the filtered data matrix the function `prcomp` should be used and the resulting object should be named `pca`. `prcomp` uses the function `svd` to perform PCA by applying singular value decomposition (SVD) to the mean centered expression matrix. 
+
+### 1.2.1 Look up functions etc.
+
+For details, look up the source code of `prcomp()`. Also look up the help page for `prcomp()`. Results can be summarized using the functions `summary()`, `str()`, `screeplot()` and `plot()`.
+
+```{r pcahelp}
+?prcomp
+
+# look at the prcomp source code:
+stats:::prcomp.default
+```
+
+### 1.2.2 Apply the `prcomp` function.
+
+Apply the `prcomp()` function. Use the `summary()` and `str()` functions to look at the results.
+
+**Note:** We need to transpose the expression matrix first, because the `prcomp()` function expects the samples (patients) in the rows and the variables (genes) in the columns.
+
+```{r pca1}
+# apply the function to the transposed expression matrix t(exprs(gset)):
+pca <- prcomp(t(exprs(gset)))
+pca <- prcomp(t(exprs(gset)), scale=TRUE)
+
+# Workaround in case of error message when scale=TRUE 
+# (because some genes have variance 0):
+vars <- apply(t(exprs(gset)), 2, var)
+summary(vars) 
+    #shows that some variances are exactly zero 
+    #-> attempts to divide by zero with scale=TRUE
+gset.forPCA <- gset[vars>0,]
+pca <- prcomp(t(exprs(gset.forPCA)), scale=TRUE)
+
+# look at the results:
+summary(pca)
+str(pca)
+```
+
+### 1.2.3 Make a screeplot.
+
+```{r scree}
+# use the specific R function:
+screeplot(pca, npcs = length(pca$sdev))
+
+# this is nearly the same as the following:
+plot(pca$sdev^2/sum(pca$sdev^2), type="h")
+```
+
+## 1.3. Pairwise scatterplot of the first 2 principal components
+
+Here, we reproduce the first plot in Figure 1a from Gerstung et al. (2015).
+
+Visualize the first two PCs by pairwise scatterplot using `plot()` and highlight patients bearing a SF3B1 mutation in red. 
+
+Note that the expression matrix needs to be transposed (`t()`) before applying `prcomp()`. Why is that? What would happen, if the data matrix would not be transposed, and how would the PCA results have to be interpreted then?
+
+```{r scatter, fig.width=6, fig.height=6}
+# save the `pData` in a `data.frame` called `clinic`.
+clinic <- pData(gset)
+
+# generate colors for SF3B1
+col.SF3B1 <- rep("gray", length=ncol(gset))
+col.SF3B1[clinic$SF3B1==1] <- "darkred"
+
+# generate different point types for missing and non-missing data
+pch.SF3B1 <- ifelse(is.na(clinic$SF3B1), 1, 19)
+```
+
+```{r fig.height=5,fig.cap = 'Gerstung et al. (2015), Figure 1a: Pairwise Scatterplot',fig.pos='b!'}
+# make pairwise scatterplot of principal components:
+plot(x=pca$x[,1], y=pca$x[,2], col=col.SF3B1, pch=pch.SF3B1, 
+     ylab="PC1", xlab="PC2", main="SF3B1")
+```
+
+## 1.4. Bonus (only if time): Reproduce Gerstung et al. (2015), Supplementary Figure 1
+
+Supplementary Figure 1 in Gerstung et al. (2015) is a fancy version of a screeplot with additional information. The following code is based on the original code from Gerstung et al. (2015) - and therefore not so well documented.
+
+Try to understand what each part of the code does. Add a brief comment to each line of this code chunk (wherever the comment is missing) to describe what each code line does.
+
+```{r suppfig1}
+library(RColorBrewer)
+
+# specify a color palette:
+set1 = c(brewer.pal(9,"Set1"), brewer.pal(8, "Dark2"))
+
+# make the actual scree plot
+par(bty="n", mgp = c(2.5,.5,0), mar=c(3,4,1,2)+.1, tcl=-.25, las=1)
+plot(pca$sdev^2/sum(pca$sdev^2), type="h", col=set1[1], 
+     xlab="", ylab=expression(paste("Explained variance ", Rgenetics^2)), 
+     ylim=c(0,0.15), yaxs="i")
+mtext(side=1, "Principal component", line=2)
+
+# calculate the cumulative explained variance
+c <- cumsum(pca$sdev^2)/sum(pca$sdev^2)* pca$sdev[1]^2/sum(pca$sdev^2)
+
+lines(c , type="s")
+axis(4, at=pretty(c(0,1))* pca$sdev[1]^2/sum(pca$sdev^2), 
+        labels=pretty(c(0,1)))
+
+legend("bottomright", col=c(set1[1],"black"), lty=1, c("Per PC","Cumulative"), bty="n")
+
+# make some additional lines to show in the plot how much of the explained variance is explained by the first 20 principal components:
+lines(c(180,20,20),c(c[20],c[20],0), lty=3)
+```
+
+## 1.5. Hierarchical Clustering
+
+### 1.5.1 Select the 1000 genes with highest variance. 
+
+To apply hierarchical clustering the data set needs to be reduced. We choose to do this by only keeping the $1000$ genes that show highest variance across all samples. 
+
+To perform this filtering step the functions `var()`, `apply()` and `order()` can be used as follows.
+
+```{r filter}
+# for each gene, calculate the variance over all samples
+vs <- apply(exprs(gset),1,var)
+
+# order the genes by decreasing variance
+oo <- order(vs,decreasing=TRUE)
+
+# select the 1000 genes with the largest variances
+gep <- exprs(gset)[oo[1:1000],]
+```
+
+* Summarise the distribution of `vs` (=variances) and of `sqrt(vs)` (=standard deviations) graphically. What is the cutoff for the variance that corresponds to our choice of keeping the 1000 genes with largest variance? Do you think this cutoff was a sensible choice?
+* Look at `oo` carefully. Make sure that you understand what the data entries in this vector mean.
+* Would you have chosen a different cutoff values for the variance? How many genes would you have kept with your cutoff?  
+
+```{r filter2}
+
+```
+
+### 1.5.2 Perform hierarchical clustering and plot the resulting dendrogram.
+
+To cluster samples, a distance matrix needs to be calculated by using the function `dist()`. For hierarchical clustering, the function `hclust` should be applied using `'complete'` linkage as clustering method. The resulting dendrogram can be visualized using `plot()`. Note, you have to transpose the gene expression matrix using `t()` to calculate pairwise distances for the samples.
+
+```{r hc1}
+# calculate the Euclidean distances (note that the data need to be transposed again)
+ed <- dist(t(gep))
+
+# do the hierarchical clustering (with complete linkage)
+ehc <- hclust(ed,method="complete")
+
+# plot the resulting dendrogram
+plot(ehc,labels=FALSE)
+```
+
+### 1.5.3 Perform hierarchical clustering using Pearson correlation.
+
+In addition, we want to apply the same hierarchical clustering using $1-$Pearson correlation as distance measure. The Pearson correlation can be calulcated by the function `cor()` and the resulting matrix needs to be tranformed to an `dist()` object by using the function `as.dist()`: you can therefore calculate the corresponding distance matrix with `as.dist(1-cor(gep))`.
+
+```{r hc2}
+
+```
+
+## 1.6. Assess how compact (or distinct) the clusters are
+
+### 1.6.1 Display the silhouette measure for the Clustering result based on euclidean distance for $K=2,\cdots,5$ clusters.
+
+To determine the number of clusters we want to look at the `silhouette` measure for $K=2,\cdots,5$ cluster.
+
+We will do three things in one nested command: `plot(silhouette(cutree(ehc,2),ed))`.
+
+First (inner-most brackets), find the clusters using `cutree()`. Second, calculate the silhouette measure with `silhouette()`. Third (outer-most brackets), make the plot.
+
+Compare the average silhouette width values to determine how many clusters provide the most compact clustering.
+
+*Note:* If you do not see the final plot in the HTML output, look for a plot called `silhouette.pdf` in your folder.
+
+```{r silhouette, fig.width=8, fig.height=8, dev='pdf'}
+# set up panel of 2x2 plots:
+par(mfrow=c(2,2))
+
+# plots for 2, 3, and 4 clusters:
+plot(silhouette(cutree(ehc,2),ed))
+plot(silhouette(cutree(ehc,3),ed))
+plot(silhouette(cutree(ehc,4),ed))
+
+# to demonstrate the principle, we can run the last command (for 5 clusters) in three separate commands:
+ct <- cutree(ehc,5)
+sh <- silhouette(ct,ed)
+plot(sh)
+```
+
+### 1.6.2 Display the results by a heatmap.
+
+Finally, we want to visualize the clustering results using a heatmap plot implemented in the package `pheatmap`.
+
+Interpret the heatmap. How distinct are the resulting clusters of gene expression features (rows) and of patient samples (columns)? For which groups of gene expression features are the differences largest between the patient clusters? Do the visualised gene mutations help to characterise the patient clusters?
+
+```{r heatmap, fig.width=8, fig.height=8}
+# generate an annotation data.frame to visualize the most frequent mutations,
+# as identified in yesterday's project session:
+anno <- data.frame(clinic[,c("SF3B1", "TET2", "SRSF2", "ASXL1", "DNMT3A")])
+rownames(anno) <- clinic$GEOID
+
+# plot heatmap with sample annotation
+pheatmap(gep, annotation=anno,clustering_method="complete",
+         drop_levels=TRUE,show_rownames=FALSE,
+         show_colnames=FALSE,legend=FALSE,
+         cutree_cols=2)
+```
+
+### 1.6.3 Bonus (only if time): Assess the stability of the clustering by Consensus Clustering.
+
+Consensus clustering is a way of assessing the stability of the clusters of samples by repeatedly clustering the samples using random subsets of the features, and comparing for each pair of samples, how often they appear in the same cluster.
+
+Read the help page `help("ConsensusClusterPlus")` and the vignette `vignette("ConsensusClusterPlus")` to learn more about the method and how to interpret the resulting figures.
+
+Run the code and try to understand the results. How many clusters provide the most stable clustering?
+
+```{r consclust}
+# apply consensus clustering
+ccres <- ConsensusClusterPlus(gep,
+                              maxK=6,
+                              reps=1000,
+                              pItem=0.8, # proportion of features in each resampled data set
+                              clusterAlg="hc",
+                              distance="euclidean",
+                              innerLinkage="complete",
+                              finalLinkage="complete",
+                              seed=1218)
+```
+
+## 2. AML data set (validation data)
+
+The AML gene expression data in this study is RNA-seq data. The `Gerstung2015_AML.RData` object contains a `SummarizedExperiments` object called `gsetAML`, which contains the expression data as read counts aligned to genes (more accurately, ENSEMBL transcript IDs) and annotations of the samples.
+
+## 2.1 Count Data Transformation
+
+Many algorithms for unsupervised learning make the (explict or implicit) assumption that the data follow approximately a normal distribution, e.g. PCA or clustering based on the Euclidean distance metric. We know that RNA-seq data are count data and have a very right-skewed distribution. Therefore, it is recommended to transform the data before applying any of these algorithms.
+
+* Read Section `Count data transformations` in the vignette of the `DESeq2` package.  
+* Apply the variance stabilizing transformation (VST) to the `gsetAML` expression data set using the following code:  
+
+```{r vignette, eval=FALSE}
+# Open the vignette:
+vignette("DESeq2")
+```
+
+```{r prepAML}
+# Bring the data in the right format, so that the vst() function can be applied, and apply vst(). 
+# Comment: the design argument is needed, but does not have an effect here.
+dds <- DESeqDataSet(gsetAML, design = ~1) 
+vso <- vst(dds)
+vsd <- assay(vso)
+```
+
+## 2.2 Hierarchical Clustering
+
+Adapt the code used in Section 1.5 and 1.6.2 for this analysis.
+
+* Select the 1000 genes with highest variance from the VST-transformed `gsetAML` expression data set, i.e. from the `vsd` object.
+* Perform hierarchical clustering using complete linkage using the Euclidean distance metric.
+* Visualise the clustering with a heatmap using the `pheatmap` package.
+
+```{r hcAML, fig.width=8, fig.height=8}
+
+```
+
+# Software
+
+The `sessionInfo()` command is a great way to keep track of the software that you were using for a particular analysis, i.e. to remember which version of R (and each of the packages) was used. This is important to make sure that you can reproduce all of your analyses even years later.
+
+```{r sessioninfo}
+sessionInfo()
+```
