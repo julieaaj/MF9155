@@ -1,0 +1,243 @@
+---
+title: "MF9155"
+author: "Group 2: Julie Johannessen"
+output: 
+  html_document:
+    toc: TRUE
+    toc_float: TRUE
+    number_sections: TRUE
+    theme: yeti
+    highlight: kate
+date: November 2023
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE, fig.align="center")
+set.seed(42)
+```
+
+```{r packages, include=FALSE}
+# necessary packages 
+library(tidyverse)
+library(dplyr)
+library(here) # for path, we hate setwd 
+library(DESeq2)
+library(pheatmap)
+library(cluster)
+library(ConsensusClusterPlus)
+```
+
+# Intro and stuff
+
+------------------------------------------------------------------------
+
+Group work report for day 2 and day 3 of MF9155
+
+.. but first:
+
+## Motivational memes {.tabset}
+
+### Relatable
+
+![](input/meme2.png)
+
+### Relatable
+
+![](input/meme1.png)
+
+# Day 2
+
+------------------------------------------------------------------------
+
+## EDA (Exploratory Data Analysis)
+
+------------------------------------------------------------------------
+
+```{r load data, echo=FALSE}
+# load data (make sure that you are in the correct working directory with setwd()):
+load(here("input/Gerstung2015.RData"))
+load(here("input/Gerstung2015_AML.Rdata"))
+```
+
+```{r clinic_load, include=FALSE}
+# save the `pData` in a `data.frame` called `clinic`.
+clinic <- pData(gset)
+```
+
+### Task: Reproduce Table 1
+
+```{r clinic}
+
+
+# gender distribution
+clinic %>%
+  filter(Type == "MDS") %>% 
+  dplyr::count(Gender)
+
+# find range of Age 
+range(clinic$Age, na.rm = TRUE)
+
+# find median of Age
+median(clinic$Age, na.rm=TRUE)
+
+# NA count for Age in MDS patients
+sum(is.na(clinic$Age) & clinic$Type == "MDS")
+
+# subset for mds classification characteristics
+clinic %>%
+  mutate(WHO_category = case_when(
+    WHO_category == "RAEB 1" ~ "RAEB",
+    WHO_category == "RAEB 2" ~ "RAEB",
+    WHO_category == "RAEB1" ~ "RAEB",
+    WHO_category == "RAEB2" ~ "RAEB",
+    TRUE ~ WHO_category
+  )) %>%
+  filter(Type == "MDS") %>%
+  dplyr::count(WHO_category)
+
+
+
+```
+
+*Notes on EDA*
+
+-   When replicating age and gender data, it becomes clear that age and gender of the control samples er unknown
+
+-   MDS classification is found in the column named "WHO_category"
+
+-   To replicate the MDS classification of table 1, we have to match the names of RAEB samples. We also have to account for only MDS patients
+
+### Task: Exploration of the gene expression matrix
+
+-   What kind of information do you get when simply typing `gset` (i.e. the name of the data object) into the Console?
+-   What is the dimension of the expression data matrix? How many samples (patients) and how many gene expression features?
+
+```{r gset exploration}
+gset
+dim(gset)
+
+```
+
+------------------------------------------------------------------------
+
+# Day 3
+
+------------------------------------------------------------------------
+
+## Unsupervised learning
+
+### PCA calculation on subset of gset
+
+```{r pca}
+# Workaround in case of error message when scale=TRUE 
+# (because some genes have variance 0):
+vars <- apply(t(exprs(gset)), 2, var)
+gset.forPCA <- gset[vars>0,] # subset and removes variables with variance equal 0 
+pca <- prcomp(t(exprs(gset.forPCA)), scale=TRUE)
+
+```
+
+### PCA plot per mutation
+
+```{r scatter, fig.width=6, fig.height=6}
+
+# generate colors for SF3B1 mutation 
+col.SF3B1 <- rep("gray", length=ncol(gset)) # replicate vector for length of all columns in gset
+col.SF3B1[clinic$SF3B1==1] <- "#e41a1c" # add color for patients with mutation in SF3B1 
+
+# generate different point types for missing and non-missing data
+pch.SF3B1 <- ifelse(is.na(clinic$SF3B1), 1, 19)
+```
+
+```{r pca_plot, fig.height=5,fig.width=5,fig.cap = 'Gerstung et al. (2015), Figure 1a: Pairwise Scatterplot',fig.pos='b!'}
+
+# make pairwise scatterplot of principal components:
+plot(x=pca$x[,1], y=pca$x[,2], col=col.SF3B1, pch=pch.SF3B1, 
+     ylab="PC1", xlab="PC2", main="SF3B1")
+```
+
+### Alternative version for recreating PCA plot in Figure 1A
+
+```{r alternative_pca_plot,  fig.height=5,fig.width=5}
+# ggplot version where we can change variable and recreate plot 
+col_interest <- "STAG2" # choose column of interest 
+
+col.int <- rep("gray", length=ncol(gset)) # replicate vector for length of all columns in gset
+col.int[clinic[[col_interest]] == 1] <- "#e41a1c" # add color for patients with mutation
+pch.int <- ifelse(is.na(clinic[[col_interest]]), 1, 19)
+
+
+as.data.frame(pca$x) %>% 
+  ggplot(aes(PC1, PC2)) +
+  geom_point(col=col.int, shape=pch.int, size =4) +
+  labs(title = col_interest) + 
+  theme_void() +
+  theme(plot.title = element_text(hjust = 0.5,
+                                  size=30,
+                                  family ="sans",
+                                  face="italic"))
+```
+
+**Notes**
+
+-   We don't get exactly the same PCA plot as in the paper for some reason?
+-   In the paper, it seems like they are overlaying PCA plot for the variable of choice above the basic PCA plot instead of changing color of the variable only
+
+------------------------------------------------------------------------
+
+## Hierarchical clustering
+
+```{r filter}
+# for each gene, calculate the variance over all samples
+vs <- apply(exprs(gset),1,var)
+
+# order the genes by decreasing variance
+oo <- order(vs,decreasing=TRUE)
+
+# select the 1000 genes with the largest variances
+gep <- exprs(gset)[oo[1:1000],]
+```
+
+### Task: vs and sd distributions
+
+-   Summarise the distribution of `vs` (=variances) and of `sqrt(vs)` (=standard deviations) graphically. What is the cutoff for the variance that corresponds to our choice of keeping the 1000 genes with largest variance? Do you think this cutoff was a sensible choice? -- **we show distributions with histograms**
+-   Look at `oo` carefully. Make sure that you understand what the data entries in this vector mean. -- **It does not actually sort the vs vector- it provides the indices that you would use to sort the variances. Each number equals to that value's position in a potential sorted array**
+-   Would you have chosen a different cutoff values for the variance? How many genes would you have kept with your cutoff?
+
+```{r filter2}
+
+#cutoff for variance in the subset of of 1000 genes
+cutoff_vs <- min(gep)
+cutoff_vs
+
+
+# distribution of vs
+hist(vs,breaks=1000, ylim = c(0,300)) |># ylim to be able to see low frequency counts
+  abline(v = cutoff_vs, col = "red", lty = "dashed")
+
+# distribution sd (sqrt(vs))
+hist(sqrt(vs),breaks=1000, ylim=c(0,300)) |>
+  abline(v = sqrt(cutoff_vs), col = "red", lty = "dashed")
+
+
+
+```
+
+### Task: Perform hierarchical clustering using Pearson correlation.
+
+```{r}
+cor_pearson <- cor(gep, method = "pearson")
+
+gep_dist <- as.dist(1-cor_pearson)
+
+hc <- hclust(gep_dist)
+
+#plot dendogram
+plot(hc,labels = FALSE)
+
+```
+
+```{r session info, include=FALSE}
+sessionInfo()
+# Always add session info at the end of the document to come back to your markdown and see dependencies 
+```
