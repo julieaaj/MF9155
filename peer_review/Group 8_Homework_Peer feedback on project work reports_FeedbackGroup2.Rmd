@@ -11,6 +11,13 @@ editor_options:
 knitr::opts_chunk$set(message=FALSE, warning=FALSE, echo=TRUE, fig.align="center")
 ```
 
+***
+
+# Comments from Group 2
+
+
+***
+
 # Day 2
 
 ## 0. Setting working directory, load libraries and data
@@ -29,6 +36,7 @@ library(DESeq2)
 load("Gerstung2015.RData")
 load("Gerstung2015_AML.Rdata")
 ```  
+
 
   
 ## 1. MDS data set (main data)  
