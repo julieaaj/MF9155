@@ -15,6 +15,16 @@ Monica Frøystad, Aristomo Andries, Ingeborg Lie
 ## Day 2: MF9155 Project Work: Exploratory Data Analysis
 ################################################################################
 
+***
+
+# Comments from Group 3
+
+* Very neat with file and package workflow in the beginning - made it possible to actually knit your Rmd if we already had loaded the datasets from earlier
+* Age exploratory analysis does not work - we get NA. Also not very easy to know what the output is
+* Line 138: describe is a nice function 
+
+***
+
 # Gerstung et al. (2015)
 
 The data in all project work sessions come from Gerstung et al. (Nature Comm. 2015), an article presenting outcome prediction for patients with myelodysplastic syndrome (`MDS`) based on gene expression and gene mutation data. In addition, the results were validated on an acute myeloid leukemia (`AML`) data set.
@@ -664,11 +674,6 @@ pheatmap(gep_seq,clustering_method="complete",
 ```
 
 
-# Comments from Group 3
-
-* Very neat with file and package workflow in the beginning - made it possible to actually knit your Rmd if we already had loaded the datasets from earlier
-* Age exploratory analysis does not work - we get NA. Also not very easy to know what the output is
-* Line 138: describe is a nice function 
 
 
 # Software
