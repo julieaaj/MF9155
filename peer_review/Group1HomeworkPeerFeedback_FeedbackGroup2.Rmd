@@ -17,7 +17,7 @@ Monica Frøystad, Aristomo Andries, Ingeborg Lie
 
 ***
 
-# Comments from Group 3
+# Comments from Group 2
 
 * Very neat with file and package workflow in the beginning - made it possible to actually knit your Rmd if we already had loaded the datasets from earlier
 * Age exploratory analysis does not work - we get NA. Also not very easy to know what the output is
