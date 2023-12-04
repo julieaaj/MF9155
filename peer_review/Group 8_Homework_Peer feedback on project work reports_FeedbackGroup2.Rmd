@@ -1,0 +1,468 @@
+---
+title: 'Homework: Peer feedback on project work reports'
+author: "Group 8"
+date: "2023-11-30"
+output: html_document
+editor_options: 
+  chunk_output_type: console
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(message=FALSE, warning=FALSE, echo=TRUE, fig.align="center")
+```
+
+# Day 2
+
+## 0. Setting working directory, load libraries and data
+
+In order to use the data sets for our analyses, we started by loading the required libraries, setting the working directory and loading the paper Gerstung et al. (2015) data.
+  
+```{r load}
+# load libraries
+library(Hmisc)
+library(Biobase)
+library(DESeq2)
+
+# set working directory and load data 
+#setwd("C:/Users/frdeside/OneDrive - Norwegian University of Life Sciences/Courses/MF9155/Day3/")
+
+load("Gerstung2015.RData")
+load("Gerstung2015_AML.Rdata")
+```  
+
+  
+## 1. MDS data set (main data)  
+
+
+## 1.1 Exploration of additional information available for patients (in `pData(gset)`)  
+
+```{r clinic, results='hide', fig.show='hide'}
+# Save the `pData` in a `data.frame` called `clinic`
+clinic <- pData(gset)
+
+# Covariates in the `pData` slot
+colnames(clinic)
+
+# Mutation frequencies
+mut <- clinic[,27:69]
+plot(sort(apply(mut, 2, mean, na.rm=TRUE), decreasing = TRUE),
+     xlab="Gene index", ylab="Mutation frequency")
+
+names(mut)[apply(mut, 2, mean, na.rm=TRUE)>0.1]
+```
+
+The data.frame `clinic` contains the phenotype data of the large expression dataset `gset`. Using `colnames` we can visualize the names of the different columns contained in the data.frame, which correspond to the covariates. 
+
+The plot for the mutation frequencies shows the relationship between the number of mutations and the gene index. The number of mutations is the number of mutations in a gene, and the gene index is the index of the gene in the dataset. The plot shows that there is a positive correlation between the number of mutations and the gene index, which means that genes with more mutations tend to have higher gene indices. This is likely because genes with more mutations are more likely to be important and/or functional.
+The plot also shows that there is a lot of variation in the number of mutations.
+SF3B1, TET2, SRSF2, ASXL1 and DNMT3A are the genes with mutation frequencies > 10%.
+
+
+## 1.2 Bonus: Table 1
+
+```{r clinic2}
+# All samples
+describe(clinic[,c(6:9)])
+
+# Only MDS samples
+describe(clinic[clinic$Type=="MDS",c(19:26,10:13)])
+
+# Outcome and follow-up:
+library(survival)
+with(clinic[clinic$Type=="MDS",], survfit(Surv(Survival_days, 1-Status) ~ 1))
+```
+
+From the "all samples" we can see the distribution between MDS and normal types.
+From "MDS samples only" we can see the variables that are specific for the patients diagnosed with MDS.
+From the "outcome and follow-up" we want to perform survival analysis on the MDS patients. The `survfit` function generates a survival curve based on the `Survival_days` and `Status` variables, indicating the number of observations, events, median, and confidence intervals.
+
+
+## 1.3 Exploration of the gene expression matrix
+
+```{r dim}
+# Info
+gset
+
+# Dimension
+dim(exprs(gset))
+```   
+
+By exploring `gset`we can acknowledge that:
+
+* *AssayData* contains the data representing the gene expression values. 
+* *ProtocolData* indicates the experimental protocol or methods used, which in this case, it not provided (`none`).
+* *PhenoData* contains the phenotype data where `row names` represent individual samples,`variable labels` contain information such as PDID, GEOID, and age_imp, and `variable metadata` provide additional descriptions.
+* *FeatureData* stores information about features, which in this case are `none`.
+* *ExperimentData* use of `experimentData(object)` to access more experimental details or metadata associated.
+* *Annotation* can contain information about the annotation sources or databases used to annotate the features, in this case is empty (`none`).
+
+The number of samples or patients are 176 and there are 22503 gene expression features.
+
+
+### 1.3.1 Get a general overview of the distribution of gene expression values across all samples.  
+
+```{r overview1, results='hide', fig.show='hide'}
+# Make boxplots
+boxplot(exprs(gset))
+
+boxplot(exprs(gset), outline=FALSE, names=rep("", ncol(gset)))
+```
+
+The first boxplot shows the distribution of all samples without any modifications.
+The second boxplot does not have any outlier and the x-axis labels are removed. It presents a clearer view of the gene expression distributions across samples.
+
+```{r overview2}
+# Calculate median, minimum, and maximum for each sample
+medians <- apply(exprs(gset), 2, median)
+minimums <- apply(exprs(gset), 2, min)
+maximums <- apply(exprs(gset), 2, max)
+
+# Summary 
+summary(medians)
+summary(minimums)
+summary(maximums)
+```
+
+For the medians the values range between 3.520 and 3.944. The minimum, maximum, and all quartiles are  close together, suggesting a narrow variation in medians across samples.
+In the minimums the values are identical (all 2.254). Every sample has the same minimum gene expression value (2.254).
+
+The maximums range from 15.50 to 16.20, which suggests a narrow variation.
+
+
+### 1.3.2 Investigate the expression value distributions for samples 1 to 10 in more detail.
+
+```{r samples1-10, fig.show='hide'}
+# Boxplots
+boxplot(exprs(gset)[,1:10], las=2, cex.axis=0.6)
+
+# Density plots
+library(ggplot2)
+library(reshape2)
+
+tidydata <- melt(exprs(gset)[,1:10])
+
+colnames(tidydata) <- c("feature", "sample", "value")
+
+ggplot(tidydata, aes(x=value, fill=sample)) + geom_density(alpha=0.25)
+```
+
+Boxplots: 
+
+* for the first 10 samples (columns) of the gene expression data `gset`.
+* `las=2` is the orientation of the x-axis labels to be vertical, in this way they can be readed better.
+* `cex.axis=0.6` adjusts the size of the axis text to be smaller.
+
+Density Plots:
+
+* after loading the libraries, we created a new object called `tidydata` in which are present the gene expression data for the first 10 samples.
+* `aes()` specifies the aesthetics of the plot, where `x=value` sets the variable for the x-axis, and `fill=sample` determines the fill color based on the sample.
+* `geom_density(alpha=0.25)` creates a density plot for each sample overlaid on the same plot and `alpha=0.25` make the density plots transparent in order to avoid overlapping colors obscuring each other.
+* It shows the distribution of gene expression values for each sample, giving a better understanding of the data distribution compared to boxplots.
+
+
+## 2. AML data set (validation data)
+
+
+## 2.1 Exploration of additional information available for patients (in `colData(gsetAML)`)  
+
+```{r clinicAML, eval=FALSE}
+# Exploring 
+colData(gsetAML)
+assay(gsetAML)
+
+# Save in `clinic2`
+clinic2 <- colData(gsetAML)
+
+# Covariates
+colnames(clinic2)
+
+# Mutation frequencies
+mut <- clinic2[,34:78]
+plot(sort(apply(mut, 2, mean, na.rm=TRUE), decreasing = TRUE),
+     xlab="Gene index", ylab="Mutation frequency")
+
+names(mut)[apply(mut, 2, mean, na.rm=TRUE)>0.1]
+```
+
+`SummarizedExperiment` is a matrix-like container where rows represent features of interest (e.g. genes, transcripts, exons, etc.) and columns represent samples.
+DNMT3A, FLT3_ITD, IDH2 and NPM1 are the genes with mutation frequencies > 10%.
+
+
+## 2.3 Exploration of the gene expression matrix
+
+```{r dimAML}
+gsetAML
+
+# Dimension
+dim(assay(gsetAML))
+```   
+
+Exploring `gsetAML`we find:
+
+* `RangedSummarizedExperiment` *object*.
+* *Dimensions* 20429 rows (genes) and 151 columns (samples).
+* *Metadata* contains additional information about the dataset.
+* *Assays* contains the actual data. One assay is present: HTSeq - Counts.
+* *Row Data* contains information associated with rows (genes). Includes details like ensembl_gene_id, external_gene_name, and original_ensembl_gene_id for each gene.
+* *Column Data* contains information associated with columns (samples). Includes details such as barcode, patient, U2AF2, WT1, among other variables.
+
+The number of samples or patients are 151 and there are 20429 gene expression features.
+
+
+### 2.3.1 Get a general overview of the distribution of gene expression values across all samples.  
+
+```{r overviewAML}
+# Make boxplots of all samples to compare the distributions:
+boxplot(assay(gsetAML), las=2, cex.axis=0.6)
+boxplot(assay(gsetAML), outline=FALSE, names=rep("", ncol(gsetAML)))
+
+# Calculate median, minimum, and maximum for each sample
+medians2 <- apply(assay(gsetAML), 2, median)
+minimums2 <- apply(assay(gsetAML), 2, min)
+maximums2 <- apply(assay(gsetAML), 2, max)
+
+# Summary 
+summary(medians2)
+summary(minimums2)
+summary(maximums2)
+
+# Boxplots again:
+# gGne expression counts of the first 10 samples 
+boxplot(assay(gsetAML)[,1:10], las=2, cex.axis=0.6, ylab="counts")
+# Repeat for log2(count + 0.5) data:
+boxplot(log2(assay(gsetAML)[,1:10] + 0.5), las=2, cex.axis=0.6, ylab="log2(counts + 0.5)")
+
+# Density plots:
+library(ggplot2)
+library(reshape2)
+tidydata <- melt(assay(gsetAML)[,1:10])
+colnames(tidydata) <- c("feature", "sample", "value")
+ggplot(tidydata, aes(x=value, fill=sample)) + geom_density(alpha=0.25)
+
+# Repeat for log2(count + 0.5) data:
+tidydata <- melt(log2(assay(gsetAML)[,1:10] + 0.5))
+colnames(tidydata) <- c("feature", "sample", "value")
+ggplot(tidydata, aes(x=value, fill=sample)) + geom_density(alpha=0.25)
+```
+
+In the minimums all the summaries are 0. This indicates that across samples, the minimum gene expression value is recorded as 0.
+The range of maximum values is quite extensive, ranging from 81401 to 1750545. The mean and median (342224 and 250132, respectively) suggest the presence of extremely high maximum values, contributing to a potentially highly skewed distribution.
+
+Log2 transformation is a pre-processing step that enhances the quality and interpretability of gene expression data by addressing skewness, stabilizing the variance, resulting in normalization, and ensuring data suitability. In genomics and transcriptomics, log2 transformation is preferred because of its alignment with biological interpretations (fold changes), convention in statistical methods, and practicality in handling gene expression data (inherent binary-like nature). 
+
+
+# Day 3
+
+## 0. Loading the libraries
+
+```{r load libraries}
+library(DESeq2)
+library(pheatmap)
+library(cluster)
+library(ConsensusClusterPlus)
+```
+
+
+### 1.2.2 Apply the `prcomp` function.
+
+```{r pca1}
+# Apply the function to the transposed expression matrix t(exprs(gset))
+pca <- prcomp(t(exprs(gset)))
+
+# When scale=TRUE we get an error message because some genes have variance 0
+# pca <- prcomp(t(exprs(gset)), scale=TRUE)
+
+vars <- apply(t(exprs(gset)), 2, var)
+summary(vars) 
+
+# Variances>0
+gset.forPCA <- gset[vars>0,]
+pca <- prcomp(t(exprs(gset.forPCA)), scale=TRUE)
+
+summary(pca)
+str(pca)
+```
+
+From `summary(vars)` we can see that some variances are 0 (min. 0), so when `scale=T` attempt to divide by 0, the error "cannot rescale a constant/zero column to unit variance" appears.
+There are 176 PCs in this PCA. 
+
+
+### 1.2.3 Make a screeplot.
+
+```{r scree}
+# Screeplots
+screeplot(pca, npcs = length(pca$sdev))
+
+plot(pca$sdev^2/sum(pca$sdev^2), type="h")
+```
+
+The first line of code generates a scree plot. `npcs = length(pca$sdev)` specifies the number of principal components (PCs) to include in the plot. Here, it uses all available ones `(length(pca$sdev)`.
+
+The second line of code plots the variance explained by each PC. 
+
+* The numerator `(pca$sdev^2)` represents the variance of each component, and dividing it by the sum of all variances `(sum(pca$sdev^2))` provides the proportion of variance explained by each component. 
+* `plot(..., type="h")` plots a horizontal bar plot (type="h") of the variance proportions for each PC.
+
+In general the screeplot shows the eigenvalues (variance) of each PC against their respective component numbers. It helps deciding how many components to keep based on the "elbow" or significant drop-off in eigenvalues. The variance proportion plot (second plot) represents the proportion of variance explained by each PC. Indicates the relative importance of each component in explaining the total variance.
+
+
+## 1.3. Pairwise scatterplot of the first 2 principal components
+
+```{r scatter, fig.width=6, fig.height=6}
+# Save the `pData` in a `data.frame` called `clinic`.
+clinic <- pData(gset)
+
+# Generate colors for SF3B1
+col.SF3B1 <- rep("gray", length=ncol(gset))
+col.SF3B1[clinic$SF3B1==1] <- "darkred"
+
+# Generate different point types for missing and non-missing data
+pch.SF3B1 <- ifelse(is.na(clinic$SF3B1), 1, 19)
+```
+
+
+```{r fig.height=5,fig.cap = 'Gerstung et al. (2015), Figure 1a: Pairwise Scatterplot',fig.pos='b!'}
+# Pairwise scatterplot of PCs
+plot(x=pca$x[,1], y=pca$x[,2], col=col.SF3B1, pch=pch.SF3B1, 
+     ylab="PC1", xlab="PC2", main="SF3B1")
+```
+
+The transpose operation (`t()`) aligns the data matrix with PCA's expected orientation, ensuring that the subsequent PCA analysis and its interpretation correctly capture sample relationships, identify significant features, and aid in understanding sample variability based on gene expression patterns.
+
+
+## 1.5. Hierarchical Clustering
+
+### 1.5.1 Select the 1000 genes with highest variance. 
+
+```{r filter}
+# For each gene, calculate the variance over all samples
+vs <- apply(exprs(gset),1,var)
+
+# Order the genes by decreasing variance
+oo <- order(vs,decreasing=TRUE)
+
+# Select the 1000 genes with the largest variances
+gep <- exprs(gset)[oo[1:1000],]
+```
+
+```{r filter2}
+hist(vs)
+hist(sqrt(vs))
+hist(oo)
+hist(gep)
+
+hist(sqrt(vs), main = "Standard Deviation")
+abline(v=sqrt(vs[oo[1000]]), col = "red")
+
+vs[oo[1000]]
+```
+
+Ordering genes by decreasing variance allows for efficient identification and selection of genes most likely to contribute significantly to the observed variation across samples. This step helps to reduce the noise.
+The histogram provides an overview of the distribution of standard deviations across genes, demonstrating how variability is distributed among genes in the dataset.The red line marks the standard deviation value of the 1000th gene with the largest variance. It indicates the threshold for considering genes with relatively high variability compared to others in the dataset.
+
+
+### 1.5.2 Perform hierarchical clustering and plot the resulting dendrogram.
+
+```{r hc1}
+# Calculate the Euclidean distances (the data need to be transposed)
+ed <- dist(t(gep))
+
+# Hierarchical clustering (complete linkage)
+ehc <- hclust(ed,method="complete")
+
+# Dendrogram
+plot(ehc,labels=FALSE)
+```
+
+### 1.5.3 Perform hierarchical clustering using Pearson correlation.
+
+```{r hc2}
+# Calculate 1 - Pearson correlation
+pearson_corr <- cor(gep)
+one_minus_corr <- 1 - pearson_corr
+
+# Convert to distance object
+dist_pearson <- as.dist(one_minus_corr)
+
+# Hierarchical clustering (complete linkage) using 1 - Pearson correlation
+ehc_pearson <- hclust(dist_pearson, method = "complete")
+
+# Dendrogram for 1 - Pearson correlation
+plot(ehc_pearson, labels = FALSE)
+```
+
+
+## 1.6. Assess how compact (or distinct) the clusters are
+
+### 1.6.1 Display the silhouette measure for the Clustering result based on euclidean distance for $K=2,\cdots,5$ clusters.
+
+```{r silhouette, fig.width=8, fig.height=8, dev='pdf'}
+# Set up panel of 2x2 plots:
+par(mfrow=c(2,2))
+
+# Plots for 2, 3, and 4 clusters:
+plot(silhouette(cutree(ehc,2),ed))
+plot(silhouette(cutree(ehc,3),ed))
+plot(silhouette(cutree(ehc,4),ed))
+
+# To demonstrate the principle, we can run the last command (for 5 clusters) in three separate commands:
+ct <- cutree(ehc,5)
+sh <- silhouette(ct,ed)
+plot(sh)
+```
+
+
+### 1.6.2 Display the results by a heatmap.
+
+```{r heatmap, fig.width=8, fig.height=8}
+# generate an annotation data.frame to visualize the most frequent mutations,
+# as identified in yesterday's project session:
+anno <- data.frame(clinic[,c("SF3B1", "TET2", "SRSF2", "ASXL1", "DNMT3A")])
+rownames(anno) <- clinic$GEOID
+
+# plot heatmap with sample annotation
+pheatmap(gep, annotation=anno,clustering_method="complete",
+         drop_levels=TRUE,show_rownames=FALSE,
+         show_colnames=FALSE,legend=FALSE,
+         cutree_cols=2)
+```
+
+The resulting clusters of gene expression features (rows) and of patient samples (columns) are relatively distinct. This can be seen in the heatmap, where the different clusters are clearly separated from each other. The silhouette score, which is a measure of how well samples are clustered, is 0.85, which is considered to be a good score.
+The differences between the patient clusters are largest for the genes that are differentially expressed between the clusters. The genes that are differentially expressed between the clusters are likely to be involved in the disease process, and could be used as biomarkers to diagnose or classify patients.
+The visualised gene mutations help to characterise the patient clusters. The mutations are shown as black tiles on the heatmap. The different clusters have different patterns of mutations. 
+
+
+## 2. AML data set (validation data)
+
+
+## 2.1 Count Data Transformation
+
+```{r prepAML}
+# Bring the data in the right format, so that the vst() function can be applied, and apply vst(). 
+# Comment: the design argument is needed, but does not have an effect here.
+dds <- DESeqDataSet(gsetAML, design = ~1) 
+vso <- vst(dds)
+vsd <- assay(vso)
+dim(vsd)
+```
+
+## 2.2 Hierarchical Clustering
+
+```{r hcAML, fig.width=8, fig.height=8}
+vs <- apply(vsd, 1, var)
+oo <- order(vs,decreasing=TRUE)
+gep <- vsd[oo[1:1000],]
+
+# Generate an annotation data.frame to visualize the most frequent mutations
+anno <- data.frame(colData(gsetAML)[,c("DNMT3A", "FLT3_ITD", "IDH2", "NPM1")])
+anno <- as.data.frame(apply(anno, 2, as.numeric))
+rownames(anno) <- colData(gsetAML)$TCGA_ID
+
+# Heatmap
+pheatmap(gep, annotation=anno, clustering_method="complete",
+         show_rownames=FALSE, show_colnames=FALSE, legend=FALSE,
+         clustering_distance_cols="euclidean",
+         clustering_distance_rows="euclidean")
+```
+
+After selecting the first 1000 Genes with largest variances, the histogram plots the indices of the top 1000 genes based on their standard deviation. Hierarchical clustering using Euclidean distances can help identify clusters or patterns among genes based on their variance profiles.
