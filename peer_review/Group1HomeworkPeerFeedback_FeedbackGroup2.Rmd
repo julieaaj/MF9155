@@ -1,0 +1,680 @@
+---
+title: 'Homework Group 1: For peer feedback on project work reports'
+author: "Monica Frøystad, Aristomo Andries, Ingeborg Lie"
+date: "November 2023"
+output: html_document
+---
+
+```{r setup, message=FALSE, warning=FALSE, echo=FALSE, eval=TRUE, include=FALSE}
+knitr::opts_chunk$set(message=FALSE, warning=FALSE, eval=FALSE, echo=TRUE, fig.align="center")
+```
+
+## Group 1
+Monica Frøystad, Aristomo Andries, Ingeborg Lie
+
+## Day 2: MF9155 Project Work: Exploratory Data Analysis
+################################################################################
+
+# Gerstung et al. (2015)
+
+The data in all project work sessions come from Gerstung et al. (Nature Comm. 2015), an article presenting outcome prediction for patients with myelodysplastic syndrome (`MDS`) based on gene expression and gene mutation data. In addition, the results were validated on an acute myeloid leukemia (`AML`) data set.
+
+The aim of this project work session is to understand the setup of the data set and explore the data by calculating suitable summary statistics and summarising some of the data by simple graphics.
+
+**If the code is not provided, use suitable code snippets from the Introductory R lecture by Fatima on day 1 of the course to solve those tasks. Otherwise, go through the R code line by line (i.e. copy and paste individual lines to the Console) and see what happens in each case.**
+
+**Save all your analysis code as an R script or R Markdown (Rmd) file. Together as a group, prepare a brief analysis report which includes your output (numbers, tables, figures) as well as brief answers to the questions asked here.**
+  
+## 0. Set working directory, load libraries and data
+  
+* First, set the working directory to the directory where you have stored the data sets. You can do this either in the console by using the `setwd()` command. Or you can use the RStudio window tab `Files`, click to the correct directory and the use the `Set As Working Directory` option in the `More` tab.  
+
+* Load the libraries.
+* Load the data.
+
+## OBS! Please read some comments to setup your workspace below for Day 2 and Day 3
+```{r load}
+
+# This setup is optimized for a Linux version, please change directory
+# accordingly if you are using windows version.
+# However, since there is no path dependent script, they should work as
+# it is.
+
+# Please put your data (Gerstung2015.Rdata and **_AML.RData) files in the same directory of the script file OR
+# modify the script to your preferred location when loading these database.
+
+# Working directory is set to where THIS script is located.
+
+
+# Detaching package 'here' to reset it's path
+tryCatch(detach('package:here', unload=T),
+         error=function(e){print('Package already detached')})
+
+# Setting working directory where the R script is
+setwd(dirname(rstudioapi::getActiveDocumentContext()$path))
+
+# Just in case you have a non-standard library location
+#.libPaths('/mnt/your-custom-library-paths/')
+
+install.packages('Rtools')
+
+# Additional libraries
+pakke <- c('DESeq2',
+           'pheatmap',
+           'cluster',
+           'ConsensusClusterPlus',
+           'here', # Essential one to point file easily
+           'Hmisc',
+           'Biobase'
+           )
+
+# To install the packages (if they are not already installed)
+newPakke <- pakke[!(pakke %in% installed.packages()[, 'Package'])]
+if(length(newPakke))install.packages(newPakke)
+
+# To load the packages
+for(pkg in pakke){
+  library(pkg, character.only = TRUE)
+}
+
+# load the data (make sure that you are in the correct working directory with setwd()):
+load("Gerstung2015.RData")
+load("Gerstung2015_AML.Rdata")
+getwd()
+View(gset)
+
+```
+
+
+## 1. MDS data set (main data)  
+
+#Gerstund2015.Rdata is named gset in environment***
+#Gerstubd2015_AML.RData is named gsetAML in environment***
+
+The MDS gene expression data in this study was generated with hgu133plus2 Affymetrix arrays. The `Gerstung2015.RData` object contains an `ExpressionSet` object called `gset`, which contains the expression data that were normalized with `gcrma` (intensities are on the log2-scale) and annotations of the samples.
+
+## 1.1 Exploration of additional information available for patients (in `pData(gset)`)  
+
+* Save the `pData` in a `data.frame` called `clinic`. 
+* Which covariates are stored in the `pData` slot?
+* Use the Gerstung et al. (2015) article to find out about each of the variables (e.g. see Table 1).  
+* Report the mutation frequencies for all mutations (`clinic[,27:69]`). List the genes with mutation frequencies `> 10%`.
+  
+```{r clinic, results='hide', fig.show='hide'}
+# save the `pData` in a `data.frame` called `clinic`.
+clinic <- pData(gset)
+#this makes clinic, that is a data frame*** (is.data.frame)
+
+# which covariates are stored in the `pData` slot?
+colnames(clinic)
+
+# mutation frequencies
+mut <- clinic[,27:69]
+plot(sort(apply(mut, 2, mean, na.rm=TRUE), decreasing = TRUE),
+     xlab="Gene index", ylab="Mutation frequency")
+names(mut)[apply(mut, 2, mean, na.rm=TRUE)>0.1]
+```
+
+## 1.2 Bonus: Table 1
+
+* If there is time, reproduce the numbers reported in Table 1 in Gerstung et al. (2015). Analyse the ''Outcome and follow-up'' data only if you are familiar with the analysis of survival data (Kaplan-Meier estimates).    
+
+```{r clinic2}
+# Exploring the variable age
+which(is.na(clinic$Age), arr.ind=TRUE)
+mean(clinic$Age)
+
+# All samples
+describe(clinic[,c(6:9)])
+
+# Only MDS samples
+describe(clinic[clinic$Type=="MDS",c(19:26,10:13)])
+
+# Outcome and follow-up:
+library(survival)
+with(clinic[clinic$Type=="MDS",], survfit(Surv(Survival_days, 1-Status) ~ 1))
+```
+
+## 1.3 Exploration of the gene expression matrix
+
+* What kind of information do you get when simply typing `gset` (i.e. the name of the data object) into the Console?
+* What is the dimension of the expression data matrix? How many samples (patients) and how many gene expression features?   
+
+```{r dim}
+gset
+
+# Dimension
+dim(exprs(gset))
+```   
+* 22503 features of 176 samples.
+
+
+### 1.3.1 Get a general overview of the distribution of gene expression values across all samples.  
+
+* Let's start with some boxplots: Run the following code. Compare the output of both lines - what do the additional function arguments do? 
+* Are there any outlier samples?  
+
+```{r overview1, results='hide', fig.show='hide'}
+# Make boxplots of all samples to compare the distributions:
+# Start simple:
+boxplot(exprs(gset))
+
+# Compare the previous line's output with the following plot. 
+# What do the additional function arguments do?
+boxplot(exprs(gset), outline=FALSE, names=rep("", ncol(gset)))
+```
+
+#THey remove the outliers and the row names. There is a huge amount of outliers that are removed. 
+
+* Summarise the distribution of the per-sample median gene expression levels (Note: Use `apply()` to calculate the median for each sample).
+* Repeat for the minimum and maximum values. Do you notice anything unusual?  Many have the same minimum value named 2.254? **
+
+```{r overview2}
+gset@assayData$exprs
+medi <- apply(gset@assayData$exprs,2,median)
+mini <- apply(gset@assayData$exprs,2,min)
+maxi <- apply(gset@assayData$exprs,2,max)
+
+# Summary 
+summary(medi)
+summary(mini)
+summary(maxi)
+```
+
+### 1.3.2 Investigate the expression value distributions for samples 1 to 10 in more detail.  
+
+* Make boxplots only for the first 10 samples.
+
+* To get a better impression of the shape of the distributions, create overlaying density plots. Use the provided `ggplot2` code.  
+
+* Can you understand what happens in each line of code? Check the help pages by typing `?melt`, `?ggplot`, etc. Note differences in the syntax used by the `ggplot2` package (i.e. in the last line of the code).  
+
+```{r samples1-10, fig.show='hide'}
+# Boxplots again:
+boxplot(exprs(gset)[,1:10], las=2, cex.axis=0.6)
+
+# Use the ggplot2 package to show overlaying density plots:
+library(ggplot2)
+library(reshape2)
+tidydata <- melt(exprs(gset)[,1:10]) #Makes a dataframe with these 10 variables
+colnames(tidydata) <- c("feature", "sample", "value") #Gives colnames to the variables
+
+ggplot(tidydata, aes(x=value, fill=sample)) + geom_density(alpha=0.25)
+```
+
+The data is higly right skewed (nothing on the right side, almost). Tail to the right. 
+The distribution is almost binomial? Shows the density (how many) individuals on the y axis, and the values on the X axis. 
+
+
+## 2. AML data set (validation data)
+
+The AML gene expression data in this study is RNA-seq data. The `Gerstung2015_AML.RData` object contains a `SummarizedExperiments` object called `gsetAML`, which contains the expression data as read counts aligned to genes (more accurately, ENSEMBL transcript IDs) and annotations of the samples.
+
+## 2.1 Exploration of additional information available for patients (in `colData(gsetAML)`)  
+
+* Read up on `SummarizedExperiment` objects by checking out the help page and the vignette (`vignette("SummarizedExperiment")`).  #Use the code beneath***
+* What data is stored in `colData(gsetAML)` and what in `assay(gsetAML)`?  #coldata is a data frame. It has rownames with chromosome 1:151, nrows elemtType, elementMetadata, metadata, listdata (of 78 colnames)
+* Repeat the descriptive analysis of the clinical data from Section 1.1 for the AML data set.
+  
+```{r help, results='hide'}
+# Read up on SummarizedExperiment objects:
+?SummarizedExperiment
+vignette("SummarizedExperiment")
+```
+
+```{r clinicAML}
+SummarizedExperiment(gsetAML@colData)
+assay(gsetAML)
+
+
+# which covariates are stored in the `pData` slot?
+colnames(clinic)
+
+# mutation frequencies
+mut <- clinic[,27:69]
+plot(sort(apply(mut, 2, mean, na.rm=TRUE), decreasing = TRUE),
+     xlab="Gene index", ylab="Mutation frequency")
+names(mut)[apply(mut, 2, mean, na.rm=TRUE)>0.1]
+```
+#Assay???
+
+
+## 2.3 Exploration of the gene expression matrix
+
+* What kind of information do you get when simply typing `gsetAML` (i.e. the name of the data object) into the Console?
+
+* What is the dimension of the expression data matrix? How many samples (patients) and how many gene expression features? 20429 gene expression features, 151 patients?
+
+```{r dimAML}
+gsetAML
+
+# Dimension
+dim(assay(gsetAML))
+```   
+
+### 2.3.1 Get a general overview of the distribution of gene expression values across all samples.  
+
+* Investigate the distributions of the `gsetAML` expression data set, for example by adapting some of the code from Section 1.3.1.  
+* Describe the differences between the distributions of these RNA-seq data and the Affymetrix microarray expression data in `gset`.
+
+```{r overviewAML}
+# Make boxplots of all samples to compare the distributions:
+boxplot(assay(gsetAML), las=2, cex.axis=0.6)
+boxplot(assay(gsetAML), outline=FALSE, names=rep("", ncol(gsetAML)))
+
+# Calculate median, minimum, and maximum for each sample
+medians2 <- apply(assay(gsetAML), 2, median)
+minimums2 <- apply(assay(gsetAML), 2, min)
+maximums2 <- apply(assay(gsetAML), 2, max)
+
+# Summary 
+summary(medians2)
+summary(minimums2)
+summary(maximums2)
+
+# Boxplots again:
+# gGne expression counts of the first 10 samples 
+boxplot(assay(gsetAML)[,1:10], las=2, cex.axis=0.6, ylab="counts")
+# Repeat for log2(count + 0.5) data:
+boxplot(log2(assay(gsetAML)[,1:10] + 0.5), las=2, cex.axis=0.6, ylab="log2(counts + 0.5)")
+
+# Density plots:
+library(ggplot2)
+library(reshape2)
+tidydata <- melt(assay(gsetAML)[,1:10])
+colnames(tidydata) <- c("feature", "sample", "value")
+ggplot(tidydata, aes(x=value, fill=sample)) + geom_density(alpha=0.25)
+
+# Repeat for log2(count + 0.5) data:
+tidydata <- melt(log2(assay(gsetAML)[,1:10] + 0.5))
+colnames(tidydata) <- c("feature", "sample", "value")
+ggplot(tidydata, aes(x=value, fill=sample)) + geom_density(alpha=0.25)
+
+
+```
+
+# Software
+
+* The `sessionInfo()` command is a great way to keep track of the software that you were using for a particular analysis, i.e. to remember which version of R (and each of the packages) was used. This is important to make sure that you can reproduce all of your analyses even years later.  
+
+```{r sessioninfo}
+sessionInfo()
+```
+
+
+## Day 3: MF9155 Project Work: Unsupervised learning
+################################################################################
+
+## Gerstung et al. (2015)
+
+The aim of this project work session is to find molecular subgroups in the gene expression data by applying hierarchical clustering and principal component analysis (PCA).
+
+**Go through the R code line by line (i.e. copy and paste individual lines to the Console) and see what happens in each case. In some cases, the code is not provided. Use the exercises from today's computer lab to solve those tasks.**
+
+**Save all your analysis code as an R script or R Markdown (Rmd) file. Together as a group, prepare a brief analysis report which includes your output (numbers, tables, figures) as well as brief answers to the questions asked here.**
+
+## 1. MDS data set (main data)  
+
+The MDS gene expression data in this study was generated with hgu133plus2 Affymetrix arrays. The `Gerstung2015.RData` object contains an `ExpressionSet` object called `gset`, which contains the expression data that were normalized with `gcrma` (intensities are on the log2-scale) and annotations of the samples.
+
+## 1.2 PCA 
+
+To apply PCA to the filtered data matrix the function `prcomp` should be used and the resulting object should be named `pca`. `prcomp` uses the function `svd` to perform PCA by applying singular value decomposition (SVD) to the mean centered expression matrix. 
+
+### 1.2.1 Look up functions etc.
+
+For details, look up the source code of `prcomp()`. Also look up the help page for `prcomp()`. Results can be summarized using the functions `summary()`, `str()`, `screeplot()` and `plot()`.
+
+```{r pcahelp}
+?prcomp
+
+# look at the prcomp source code:
+stats:::prcomp.default
+```
+
+### 1.2.2 Apply the `prcomp` function.
+
+Apply the `prcomp()` function. Use the `summary()` and `str()` functions to look at the results.
+
+**Note:** We need to transpose the expression matrix first, because the `prcomp()` function expects the samples (patients) in the rows and the variables (genes) in the columns.
+
+```{r pca1}
+# apply the function to the transposed expression matrix t(exprs(gset)):
+pca <- prcomp(t(exprs(gset)))
+# pca <- prcomp(t(exprs(gset)), scale=TRUE)
+
+# Workaround in case of error message when scale=TRUE 
+# (because some genes have variance 0):
+vars <- apply(t(exprs(gset)), 2, var)
+summary(vars) 
+    #shows that some variances are exactly zero 
+    #-> attempts to divide by zero with scale=TRUE
+gset.forPCA <- gset[vars>0,]
+pca <- prcomp(t(exprs(gset.forPCA)), scale=TRUE)
+
+# look at the results:
+summary(pca)
+str(pca)
+```
+
+### 1.2.3 Make a screeplot.
+
+```{r scree}
+# use the specific R function:
+screeplot(pca, npcs = length(pca$sdev))
+
+# this is nearly the same as the following:
+plot(pca$sdev^2/sum(pca$sdev^2), type="h")
+```
+
+## 1.3. Pairwise scatterplot of the first 2 principal components
+
+Here, we reproduce the first plot in Figure 1a from Gerstung et al. (2015).
+
+Visualize the first two PCs by pairwise scatterplot using `plot()` and highlight patients bearing a SF3B1 mutation in red. 
+
+Note that the expression matrix needs to be transposed (`t()`) before applying `prcomp()`. Why is that?
+**Answer: The 'prcomp()'  function expects the samples (patients) in the rows and the variables (genes) in the columns. The default in gset's expression data is the opposite.**
+
+What would happen, if the data matrix would not be transposed, and how would the PCA results have to be interpreted then?
+the PCA results have to be interpreted then?
+**- If the data matrix was not transposed, the PCA plot would show variance across samples/genes rather than samples/genes (exchange rows and columns). Then it will not be focused on differences between samples, which we want to study.**
+
+```{r scatter, fig.width=6, fig.height=6}
+# save the `pData` in a `data.frame` called `clinic`.
+clinic <- pData(gset)
+
+# Transposing clinic data to comply with prcomp()
+clinicT <- t(clinic)
+
+# generate colors for SF3B1
+col.SF3B1 <- rep("gray", length=ncol(gset))
+col.SF3B1[clinic$SF3B1==1] <- "darkred"
+
+# generate different point types for missing and non-missing data
+pch.SF3B1 <- ifelse(is.na(clinic$SF3B1), 1, 19)
+```
+
+```{r fig.height=5,fig.cap = 'Gerstung et al. (2015), Figure 1a: Pairwise Scatterplot',fig.pos='b!'}
+# make pairwise scatterplot of principal components:
+plot(x=pca$x[,1], y=pca$x[,2], col=col.SF3B1, pch=pch.SF3B1, 
+     ylab="PC1", xlab="PC2", main="SF3B1")
+```
+
+## 1.4. Bonus (only if time): Reproduce Gerstung et al. (2015), Supplementary Figure 1
+
+Supplementary Figure 1 in Gerstung et al. (2015) is a fancy version of a screeplot with additional information. The following code is based on the original code from Gerstung et al. (2015) - and therefore not so well documented.
+
+Try to understand what each part of the code does. Add a brief comment to each line of this code chunk (wherever the comment is missing) to describe what each code line does.
+
+```{r suppfig1}
+library(RColorBrewer)
+
+# specify a color palette:
+set1 = c(brewer.pal(9,"Set1"), brewer.pal(8, "Dark2"))
+
+# make the actual scree plot
+par(bty="n", mgp = c(2.5,.5,0), mar=c(3,4,1,2)+.1, tcl=-.25, las=1)
+plot(pca$sdev^2/sum(pca$sdev^2), type="h", col=set1[1], 
+     xlab="", ylab=expression(paste("Explained variance ", Rgenetics^2)), 
+     ylim=c(0,0.15), yaxs="i")
+mtext(side=1, "Principal component", line=2)
+
+# calculate the cumulative explained variance
+c <- cumsum(pca$sdev^2)/sum(pca$sdev^2)* pca$sdev[1]^2/sum(pca$sdev^2)
+
+lines(c , type="s")
+axis(4, at=pretty(c(0,1))* pca$sdev[1]^2/sum(pca$sdev^2), 
+        labels=pretty(c(0,1)))
+
+legend("bottomright", col=c(set1[1],"black"), lty=1, c("Per PC","Cumulative"), bty="n")
+
+# make some additional lines to show in the plot how much of the explained variance is explained by the first 20 principal components:
+lines(c(180,20,20),c(c[20],c[20],0), lty=3)
+```
+
+## 1.5. Hierarchical Clustering
+
+### 1.5.1 Select the 1000 genes with highest variance. 
+
+To apply hierarchical clustering the data set needs to be reduced. We choose to do this by only keeping the $1000$ genes that show highest variance across all samples. 
+
+To perform this filtering step the functions `var()`, `apply()` and `order()` can be used as follows.
+
+```{r filter}
+# for each gene, calculate the variance over all samples
+vs <- apply(exprs(gset),1,var)
+
+# order the genes by decreasing variance
+oo <- order(vs,decreasing=TRUE)
+
+# select the 1000 genes with the largest variances
+gep <- exprs(gset)[oo[1:1000],]
+```
+
+* Summarise the distribution of `vs` (=variances) and of `sqrt(vs)` (=standard deviations) graphically. What is the cutoff for the variance that corresponds to our choice of keeping the 1000 genes with largest variance? Do you think this cutoff was a sensible choice?
+**- From the histogram is looks like the sqrt variance (sd) cutoff is ca. 1.2, i.e. variance = ~1.44. We think the choice was ok in terms of having high variance in each of the genes, but obviously it's only 1000 genes so won't capture all the "diversity" in the data even when looking at the most variable genes. **
+
+```{r visualisation}
+#Histogram of variances (vs)
+hist(vs, breaks = seq(0, 30, by = 0.5), col = "red", main = "Histogram of variances", xlab = "variance")
+
+boxplot(vs, main = "Boxplot of variances", ylab = "vs")
+
+
+#Histogram of =sqrt(vs)
+hist(sqrt(vs), breaks = seq(0, 30, by = 0.5), col = "red", main = "Histogram of standard deviations", xlab = "SD")
+
+boxplot(sqrt(vs), main = "Boxplot of variances", ylab = "vs")
+
+
+#Find the cut off for the variance that corresponds to the 1000 genes with largest variance
+
+vs_gep <- apply(gep,1,var) #Find the variances for the 1000 genes with highest variance
+cut_off_gep <- sort(vs_gep) #Sort the variance in increasing order
+cut_off_gep #I see that the variance for the first entry is 1.245 (row 25938)
+
+#The solution: 
+# histograms to summarise distributions:
+hist(vs, breaks=100, main="Variances")
+hist(sqrt(vs), breaks=100, main="Standard deviations")
+abline(v=sqrt(vs[oo[1000]]), col="red") 
+
+# variance cutoff:
+vs[oo[1000]]  #Shows the same solution I found
+sqrt(vs[oo[1000]]) #Shows the SD for the 1000th gene with the largest value, and it is 1.116
+```
+
+* Look at `oo` carefully. Make sure that you understand what the data entries in this vector mean.
+**- Indices for positions in the gset data. It will be used to select data with the 1000 highest variance.**
+
+* Would you have chosen a different cutoff values for the variance? How many genes would you have kept with your cutoff?
+**Not too many genes included now, maybe include some more genes with a lower cutoff for the variance. However, 1000 genes is a nice round number and as it's not an exact science, it will do as a starting point. As seen in the figure below, shifting the variance cutoff to just below 1 includes many more genes (1500 genes total), but they have lower variance. We would tend towards including more rather than fewer genes to start. **
+
+```{r filter2}
+hist(sqrt(vs), breaks = 100, main = "Std dev")
+abline(v=sqrt(vs[oo[1000]]), col = "red")
+abline(v=sqrt(vs[oo[500]]), col = "blue")
+abline(v=sqrt(vs[oo[1500]]), col = "green")
+
+```
+
+### 1.5.2 Perform hierarchical clustering and plot the resulting dendrogram.
+
+To cluster samples, a distance matrix needs to be calculated by using the function `dist()`. For hierarchical clustering, the function `hclust` should be applied using `'complete'` linkage as clustering method. The resulting dendrogram can be visualized using `plot()`. Note, you have to transpose the gene expression matrix using `t()` to calculate pairwise distances for the samples.
+
+```{r hc1}
+# calculate the Euclidean distances (note that the data need to be transposed again)
+ed <- dist(t(gep))
+
+# do the hierarchical clustering (with complete linkage)
+ehc <- hclust(ed,method="complete")
+
+# plot the resulting dendrogram
+plot(ehc,labels=FALSE)
+```
+
+### 1.5.3 Perform hierarchical clustering using Pearson correlation.
+
+In addition, we want to apply the same hierarchical clustering using $1-$Pearson correlation as distance measure. The Pearson correlation can be calulcated by the function `cor()` and the resulting matrix needs to be tranformed to an `dist()` object by using the function `as.dist()`: you can therefore calculate the corresponding distance matrix with `as.dist(1-cor(gep))`.
+
+```{r hc2}
+# Compare Euclidean distance with correlation-based distance:
+dd <- as.dist(1-cor(gep))
+dim(as.matrix(dd))
+hc.corr <- hclust(dd, method="complete")
+plot(hc.corr, labels=gset$labs, main="Complete linkage with correlation-based distance", xlab="", sub="")
+
+```
+
+## 1.6. Assess how compact (or distinct) the clusters are
+**- The clusters look pretty compact, only four major clusters with many subclusters.**
+
+### 1.6.1 Display the silhouette measure for the Clustering result based on euclidean distance for $K=2,\cdots,5$ clusters.
+
+To determine the number of clusters we want to look at the `silhouette` measure for $K=2,\cdots,5$ cluster.
+
+We will do three things in one nested command: `plot(silhouette(cutree(ehc,2),ed))`.
+
+First (inner-most brackets), find the clusters using `cutree()`. Second, calculate the silhouette measure with `silhouette()`. Third (outer-most brackets), make the plot.
+
+Compare the average silhouette width values to determine how many clusters provide the most compact clustering.
+**- Depends on visualization method. The most compact clustering is achieved using 2 clusters if looking at silhouette, but 3 clusters if looking at the heatmap. Clustering into 3 groups seems "safer" as we might miss a subgroup if using only 2 clusters.**
+
+*Note:* If you do not see the final plot in the HTML output, look for a plot called `silhouette.pdf` in your folder.
+
+```{r silhouette, fig.width=8, fig.height=8, dev='pdf'}
+# set up panel of 2x2 plots:
+par(mfrow=c(2,2))
+
+# plots for 2, 3, and 4 clusters:
+plot(silhouette(cutree(ehc,2),ed))
+plot(silhouette(cutree(ehc,3),ed))
+plot(silhouette(cutree(ehc,4),ed))
+
+# to demonstrate the principle, we can run the last command (for 5 clusters) in three separate commands:
+ct <- cutree(ehc,5)
+sh <- silhouette(ct,ed)
+plot(sh)
+```
+
+### 1.6.2 Display the results by a heatmap.
+
+Finally, we want to visualize the clustering results using a heatmap plot implemented in the package `pheatmap`.
+
+Interpret the heatmap. How distinct are the resulting clusters of gene expression features (rows) and of patient samples (columns)?
+For which groups of gene expression features are the differences largest between the patient clusters?
+Do the visualised gene mutations help to characterise the patient clusters?
+**- The clusters of gene expression features (the rows) are quite distinct and seem to cluster into three groups on the heat map. The patient samples (the columns) don't seem to cluster as clearly on the map, however there is some tendency towards clustering at the top. There is a small cluster at the very top of the main heat map where genes generally have lower expression levels for patients belonging to the two clusters on the right compares to the leftmost patient cluster. Looking at the dendrogram, the patients do cluster into three main clusters. The visualised gene mutations do not make the patient clustering any more clear to us**
+
+**- The differences appear to be largest between patient clusters for the genes in the topmost gene cluster on the heat map.**
+
+```{r heatmap, fig.width=8, fig.height=8}
+# generate an annotation data.frame to visualize the most frequent mutations,
+# as identified in yesterday's project session:
+anno <- data.frame(clinic[,c("SF3B1", "TET2", "SRSF2", "ASXL1", "DNMT3A")])
+rownames(anno) <- clinic$GEOID
+
+# plot heatmap with sample annotation
+pheatmap(gep, annotation=anno,clustering_method="complete",
+         drop_levels=TRUE,show_rownames=FALSE,
+         show_colnames=FALSE,legend=FALSE,
+         cutree_cols=2)
+```
+
+### 1.6.3 Bonus (only if time): Assess the stability of the clustering by Consensus Clustering.
+
+Consensus clustering is a way of assessing the stability of the clusters of samples by repeatedly clustering the samples using random subsets of the features, and comparing for each pair of samples, how often they appear in the same cluster.
+
+Read the help page `help("ConsensusClusterPlus")` and the vignette `vignette("ConsensusClusterPlus")` to learn more about the method and how to interpret the resulting figures.
+
+Run the code and try to understand the results. How many clusters provide the most stable clustering?
+
+```{r consclust}
+# apply consensus clustering
+ccres <- ConsensusClusterPlus(gep,
+                              maxK=6,
+                              reps=1000,
+                              pItem=0.8, # proportion of features in each resampled data set
+                              clusterAlg="hc",
+                              distance="euclidean",
+                              innerLinkage="complete",
+                              finalLinkage="complete",
+                              seed=1218)
+```
+
+## 2. AML data set (validation data)
+
+The AML gene expression data in this study is RNA-seq data. The `Gerstung2015_AML.RData` object contains a `SummarizedExperiments` object called `gsetAML`, which contains the expression data as read counts aligned to genes (more accurately, ENSEMBL transcript IDs) and annotations of the samples.
+
+## 2.1 Count Data Transformation
+
+Many algorithms for unsupervised learning make the (explict or implicit) assumption that the data follow approximately a normal distribution, e.g. PCA or clustering based on the Euclidean distance metric. We know that RNA-seq data are count data and have a very right-skewed distribution. Therefore, it is recommended to transform the data before applying any of these algorithms.
+
+* Read Section `Count data transformations` in the vignette of the `DESeq2` package.  
+* Apply the variance stabilizing transformation (VST) to the `gsetAML` expression data set using the following code:  
+
+```{r vignette, eval=FALSE}
+# Open the vignette:
+vignette("DESeq2")
+```
+
+```{r prepAML}
+# Bring the data in the right format, so that the vst() function can be applied, and apply vst(). 
+# Comment: the design argument is needed, but does not have an effect here.
+dds <- DESeqDataSet(gsetAML, design = ~1) 
+vso <- vst(dds)
+vsd <- assay(vso)
+```
+
+## 2.2 Hierarchical Clustering
+
+Adapt the code used in Section 1.5 and 1.6.2 for this analysis.
+
+* Select the 1000 genes with highest variance from the VST-transformed `gsetAML` expression data set, i.e. from the `vsd` object.
+* Perform hierarchical clustering using complete linkage using the Euclidean distance metric.
+* Visualise the clustering with a heatmap using the `pheatmap` package.
+
+```{r hcAML, fig.width=8, fig.height=8}
+#variance for all samples in matrix
+vs_seq <- apply(vsd, 1, var)
+
+#order genes by decreasing var
+oo_seq <- order(vs_seq, decreasing=TRUE)
+
+#1000 genes with the largest variance
+gep_seq <- vsd[oo_seq[1:1000],]
+View(gep_seq)
+
+# calculate the Euclidean distances (note that the data need to be transposed again)
+ed_seq <- dist(t(gep_seq))
+
+# do the hierarchical clustering (with complete linkage)
+ehc_seq <- hclust(ed_seq,method="complete")
+
+# plot the resulting dendrogram
+plot(ehc_seq,labels=FALSE)
+
+# plot heatmap with sample annotation
+pheatmap(gep_seq,clustering_method="complete",
+         drop_levels=TRUE,show_rownames=FALSE,
+         show_colnames=FALSE,legend=TRUE,
+         cutree_cols=2)
+
+```
+
+
+# Comments from Group 3
+
+* Very neat with file and package workflow in the beginning - made it possible to actually knit your Rmd if we already had loaded the datasets from earlier
+* Age exploratory analysis does not work - we get NA. Also not very easy to know what the output is
+* Line 138: describe is a nice function 
+
+
+# Software
+
+The `sessionInfo()` command is a great way to keep track of the software that you were using for a particular analysis, i.e. to remember which version of R (and each of the packages) was used. This is important to make sure that you can reproduce all of your analyses even years later.
+
+```{r sessioninfo1}
+sessionInfo()
+```
