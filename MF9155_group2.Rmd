@@ -1,6 +1,6 @@
 ---
 title: "MF9155"
-author: "Group 2: Julie Johannessen"
+author: "Group 2: Julie Johannessen, Pia Skovholt Halvorsen and Kristin Elisabeth Wickstrøm"
 output: 
   html_document:
     toc: TRUE
@@ -8,7 +8,7 @@ output:
     number_sections: TRUE
     theme: yeti
     highlight: kate
-date: November 2023
+date: "November/December 2023"
 ---
 
 ```{r setup, include=FALSE}
