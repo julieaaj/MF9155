@@ -14,7 +14,25 @@ knitr::opts_chunk$set(message=FALSE, warning=FALSE, echo=TRUE, fig.align="center
 ***
 
 # Comments from Group 2
-Better to make a html-file, so it is easy to see the input. 
+
+* Overall, we are very impressed with the fact that you did almost everything and you explain a lot in great detail for the different tasks. For example the log transformation explanation - great! 
+
+* Better to make a html-file, so it is easy to see the output in context. 
+* We guess the console output is on purpose, but it is more difficult to keep track of what analysis has happened where when going through your document. We also have problems with figure margins on small computer screens, and it is annoying that all figures are "overwritten" when running code blocks
+
+## Day 2
+
+1.2: 
+* Describe was a nice function!
+
+1.3
+* Very nice and extensive answer when describing gset
+
+## Day 3
+
+1.5.1
+* Would be nice with some explanations on the histograms and the different matrixes. What do they show? 
+* Could probably have more bins in histogram plot for visualization reasons
 
 ***
 
