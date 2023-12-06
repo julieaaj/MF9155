@@ -1,0 +1,312 @@
+---
+title: "Group Presentation"
+author: "Group 2"
+date: "2023-12-05"
+output: 
+  beamer_presentation:
+    theme: "Dresden"
+    colortheme: "dove"
+    highlight: pygments
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE, message = FALSE, error=TRUE, fig.align = "center")
+```
+
+# Intro 
+
+## Task:
+
+We tried to recreate all of the PCA plots in Figure 1
+
+
+```{r orig_figure, out.width= "95%", echo=FALSE}
+library(here)
+
+knitr::include_graphics(here("figure_plot.png"))
+
+```
+
+
+
+
+```{r load, include=FALSE}
+exprs=Biobase::exprs
+library(here)
+library(tidyverse)
+library(RColorBrewer)
+library(Biobase)
+
+# load data (make sure that you are in the correct working directory with setwd()):
+load(here("input/Gerstung2015.RData"))
+load(here("input/Gerstung2015_AML.Rdata"))
+
+```
+
+```{r load2, include=FALSE}
+
+# Clinical data and mutation profiles
+clinic <- pData(gset)
+
+```
+
+# PCA
+
+## PCA calculation on subset of gset
+*From the computer lab for unsupervised learning:*
+\footnotesize
+```{r pca}
+# subset and perform PCA calculation 
+vars <- apply(t(exprs(gset)), 2, var)
+gset.forPCA <- gset[vars>0,] 
+pca <- prcomp(t(exprs(gset.forPCA)), scale=TRUE)
+
+```
+\footnotesize
+```{r scatter, fig.width=3, fig.height=3}
+
+# generate colors for SF3B1 mutation 
+col.SF3B1 <- rep("gray", length=ncol(gset)) 
+# add color for patients with mutation in SF3B1 
+col.SF3B1[clinic$SF3B1==1] <- "darkred" 
+
+# generate different point types for missing and non-missing data
+pch.SF3B1 <- ifelse(is.na(clinic$SF3B1), 1, 19)
+```
+
+## Version of PCA plot per mutation from computer lab
+*From the computer lab for unsupervised learning:*
+\footnotesize
+```{r pca_plot, echo=TRUE, fig.height=3,fig.width=3,fig.cap = 'Gerstung et al. (2015), Figure 1a: Pairwise Scatterplot', strip.white=TRUE}
+
+# make pairwise scatterplot of principal components:
+plot(x=pca$x[,1], y=pca$x[,2], col=col.SF3B1, pch=pch.SF3B1, 
+     ylab="PC1", xlab="PC2", main="SF3B1")
+```
+
+# Our version of the PCA plots 
+
+## PCA plot for 1 gene - code
+
+\footnotesize
+```{r alternative_pca_plot, eval=FALSE}
+# ggplot version where we can change variable and recreate plot 
+col_interest <- "SF3B1" # choose column of interest 
+
+col.int <- rep("gray", length=ncol(gset)) 
+col.int[clinic[[col_interest]] == 1] <- "#e41a1c" 
+pch.int <- ifelse(is.na(clinic[[col_interest]]), 1, 19)
+
+
+as.data.frame(pca$x) %>% 
+  ggplot(aes(PC1, PC2)) +
+  geom_point(col=col.int, shape=pch.int, size =4) +
+  labs(title = col_interest) + 
+  theme_void() +
+  theme(plot.title = element_text(hjust = 0.5,
+                                  size=30,
+                                  family ="sans",
+                                  face="italic"))
+```
+
+## PCA plot for 1 gene - with figure
+
+```{r alternative_pca_plot_figure,  fig.height=3,fig.width=3, echo=FALSE}
+# ggplot version where we can change variable and recreate plot 
+col_interest <- "SF3B1" # choose column of interest 
+
+col.int <- rep("gray", length=ncol(gset)) 
+col.int[clinic[[col_interest]] == 1] <- "#e41a1c" 
+pch.int <- ifelse(is.na(clinic[[col_interest]]), 1, 19)
+
+
+as.data.frame(pca$x) %>% 
+  ggplot(aes(PC1, PC2)) +
+  geom_point(col=col.int, shape=pch.int, size =3) +
+  labs(title = col_interest) + 
+  theme_void() +
+  theme(plot.title = element_text(hjust = 0.5,
+                                  size=20,
+                                  family ="sans", 
+                                  face="italic"
+  ))
+       
+```
+.. but datapoints of interest are not on top 
+
+## PCA plot for 1 gene with mutation points on top 
+\footnotesize
+```{r alternative_pca_plot_top}
+#get rownames of patients with mutation 
+mut_rows <- clinic %>%
+  filter(get(col_interest) == 1) %>%
+  rownames()
+
+str(mut_rows)
+```
+## PCA plot for 1 gene with mutation points on top - code 
+
+\footnotesize
+```{r, pca_ontop_code, eval=TRUE, echo=TRUE, results="hide"}
+# PCA plot
+our_plot <- as.data.frame(pca$x) %>% 
+  ggplot(aes(PC1, PC2)) +
+  geom_point(col=col.int, shape=pch.int, size =3, alpha=0.8) +
+  geom_point(data=(as.data.frame(pca$x[mut_rows,])), 
+             aes(PC1, PC2), 
+             col = "#e41a1c", size = 3) +
+  labs(title = col_interest) + 
+  theme_void() +
+  theme(plot.title = element_text(hjust = 0.5,
+                                  size=20,
+                                  family ="sans",
+                                  face="italic"))
+```
+```{r save_plot, echo=FALSE}
+ggsave(filename = here("our_plot.png"),plot=our_plot, height = 3, width=3)
+
+```
+
+
+## PCA plot for 1 gene with mutation points on top - figure
+
+\footnotesize
+```{r, pca_ontop_fig, fig.height=2,fig.width=2, echo=FALSE}
+# PCA plot
+as.data.frame(pca$x) %>% 
+  ggplot(aes(PC1, PC2)) +
+  geom_point(col=col.int, shape=pch.int, size =3, alpha=0.8) +
+  geom_point(data=(as.data.frame(pca$x[mut_rows,])), 
+             aes(PC1, PC2), 
+             col = "#e41a1c", size = 3) +
+  labs(title = col_interest) + 
+  theme_void() +
+  theme(plot.title = element_text(hjust = 0.5,
+                                  size=20,
+                                  family ="sans",
+                                  face="italic"))
+```
+
+Yay - they are the top layer! 
+
+## PCA plot of all genes 
+
+It would be nice to create this plot for all of our mutations automatically and place them in a grid
+
+## PCA plot of all genes - code
+
+\footnotesize
+```{r pca_all_prep, echo=TRUE}
+#grab names of all mutations 
+mutations <- colnames(clinic[,27:69])
+
+pca_plots <- list() # create list to store all plots
+
+# loop through all mutations
+for (mut in mutations) {
+  col_interest <- mut # choose column of interest 
+  
+  #get rownames of patients with mutation 
+  mut_rows <- clinic %>%
+  filter(get(col_interest) == 1) %>%
+  rownames()
+
+#same as before
+col.int <- rep("gray", length=ncol(gset)) 
+col.int[clinic[[col_interest]] == 1] <- "#e41a1c" 
+pch.int <- ifelse(is.na(clinic[[col_interest]]), 1, 19)
+
+plot <- as.data.frame(pca$x) %>% 
+  ggplot(aes(PC1, PC2)) +
+  geom_point(col=col.int, shape=pch.int, size =1) +
+  labs(title = col_interest) + 
+  theme_void() +
+  theme(plot.title = element_text(hjust = 0.5,
+                                  size=8,
+                                  family ="sans",
+                                  face="italic"))
+
+pca_plots[[as.character(mut)]] <- plot
+
+}
+```
+
+## Second part of the code for plot loop 
+
+```{r code2, eval=FALSE, echo=TRUE}
+
+plot <- as.data.frame(pca$x) %>% 
+  ggplot(aes(PC1, PC2)) +
+  geom_point(col=col.int, shape=pch.int, size =0.8) +
+  labs(title = col_interest) + 
+  theme_void() +
+  theme(plot.title = element_text(hjust = 0.5,
+                                  size=8,
+                                  family ="sans",
+                                  face="italic"))
+
+pca_plots[[as.character(mut)]] <- plot
+
+```
+
+
+
+## Plot all plots in list 
+*for some reason this did not work with the code for mutation datapoints as top layer*
+\footnotesize
+```{r plot_all, fig.height=3,fig.width=3,echo=TRUE}
+
+library(gridExtra)
+grid.arrange(grobs=pca_plots)
+
+```
+
+## Plot all plots in list 
+
+```{r plot_all2, out.width="100%", echo=FALSE}
+grid.arrange(grobs=pca_plots)
+
+```
+
+
+# Final remarks
+
+## Our PCA plot is not similar to the one in the Gerstung paper 
+::: columns
+
+:::: column
+Gerstung paper PCA plot
+
+```{r left_plot, out.width= "95%", echo=FALSE}
+
+knitr::include_graphics(here("pca_gerstung.png"))
+
+```
+
+::::
+
+:::: column
+Our plot
+
+```{r compare figure,out.width="95%",echo=FALSE}
+
+knitr::include_graphics(here("our_plot.png"))
+
+```
+::::
+:::
+
+
+## Our PCA plot 
+
+```{r compare figure1,out.width="50%",fig.height=3,fig.width=3,echo=FALSE}
+our_plot
+#knitr::include_graphics(here("our_plot.png"))
+
+```
+
+
+```{r, include=FALSE}
+sessionInfo()
+```
+
